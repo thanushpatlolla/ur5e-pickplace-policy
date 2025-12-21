@@ -1,2 +1,4 @@
 /.claude/
 /mujoco_menagerie/
+/pycache/
+/robotiq_2f85/
