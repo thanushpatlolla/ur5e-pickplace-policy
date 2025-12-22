@@ -23,8 +23,8 @@ def initialize_object(model, data):
     object_geom_id = object_geom.id
     
     # Randomize cuboid dimensions (half-extents)
-    width = np.random.uniform(0.02, 0.05)
-    depth = np.random.uniform(0.02, 0.05)
+    width = np.random.uniform(0.02, 0.04)
+    depth = np.random.uniform(0.02, 0.04)
     height = np.random.uniform(0.015, 0.04)
     model.geom_size[object_geom_id] = np.array([width, depth, height])
     
