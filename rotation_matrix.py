@@ -5,7 +5,6 @@ def normalize(v, eps=1e-12):
     return v / (n + eps)
 
 def rodrigues(axis, angle):
-    """axis must be unit."""
     wx, wy, wz = axis
     K = np.array([[0, -wz,  wy],
                   [wz,  0, -wx],
@@ -22,10 +21,8 @@ def align_vectors(v_from, v_to, eps=1e-9):
     c = float(np.dot(v_from, v_to))
 
     if s < eps:
-        # Already aligned (or opposite). If opposite, choose an arbitrary orthogonal axis.
         if c > 0:
             return np.eye(3)
-        # 180°: pick an axis orthogonal to v_from
         ortho = np.array([1., 0., 0.]) if abs(v_from[0]) < 0.9 else np.array([0., 1., 0.])
         axis = normalize(np.cross(v_from, ortho))
         return rodrigues(axis, np.pi)
@@ -67,7 +64,7 @@ def rotation_vertical_and_align_to_cuboid(R_WE, R_WO, down_W, a_E, c_E):
     if (c_h_current @ chosen) < 0:
         chosen = -chosen
 
-    c_W_desired = chosen  # desired world closing direction, horizontal + best-aligned
+    c_W_desired = chosen
 
     B_W = make_basis(down_W, c_W_desired)
 
@@ -79,7 +76,6 @@ def rotation_vertical_and_align_to_cuboid(R_WE, R_WO, down_W, a_E, c_E):
 def get_rotation_matrix(T_WE, a_E, c_E, down_W, R_WO, current_step):
     R_WE = T_WE.as_matrix()[:3, :3]
     if current_step in [1,2,3]:
-        # R_WO is already a rotation matrix, passed directly
         R_target = rotation_vertical_and_align_to_cuboid(
             R_WE=R_WE,
             R_WO=R_WO,

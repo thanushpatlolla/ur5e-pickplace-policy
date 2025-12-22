@@ -46,21 +46,19 @@ def run_sim():
         model.geom("gripper_base_collision").id,
         model.geom("right_follower_collision").id,
         model.geom("left_follower_collision").id,
-        # model.geom("right_pad1").id,
-        # model.geom("right_pad2").id,
-        # model.geom("left_pad1").id,
-        # model.geom("left_pad2").id,
+        model.geom("right_pad1").id,
+        model.geom("right_pad2").id,
+        model.geom("left_pad1").id,
+        model.geom("left_pad2").id,
         model.geom("wrist_3_link").id,
         model.geom("wrist_2_link").id,
         model.geom("wrist_1_collision").id,
-        model.geom("forearm_collision_1").id,
-        model.geom("forearm_collision_2").id,
     ]
 
     collision_avoidance_limit = mink.CollisionAvoidanceLimit(
         model=model,
         geom_pairs=[([table_plane_id], [gid]) for gid in gripper_geoms],
-        minimum_distance_from_collisions=0.005,
+        minimum_distance_from_collisions=0.01,
         collision_detection_distance=0.05,
     )
     limits.append(collision_avoidance_limit)
