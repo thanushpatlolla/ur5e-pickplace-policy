@@ -39,6 +39,10 @@
 
     <geom name="floor" size="2 2 0.01" type="plane" material="grid" pos="0 0 0"/>
 
+    <!-- Collision plane at table height (z=0.4m) spanning entire workspace -->
+    <geom name="table_collision_plane" type="box" size="2 2 0.001" pos="0 0 0.4"
+          rgba="0.3 0.3 0.8 0" contype="1" conaffinity="1" group="3"/>
+
     <!-- Table at height 0.4m, dimensions 0.8m x 1.0m x 0.05m -->
     <body name="table" pos="0.4 0 0.2">
       <geom name="table_top" type="box" size="0.4 0.5 0.025" pos="0 0 0.175" material="table" mass="10"/>
@@ -110,6 +114,9 @@
                           diaginertia="0.000260285 0.000225381 0.000152708"/>
                         <geom type="mesh" mesh="base" material="robotiq_black" contype="0" conaffinity="0"/>
                         <geom type="mesh" mesh="base"/>
+                        <!-- Collision geom for gripper base body -->
+                        <geom name="gripper_base_collision" type="box" size="0.04 0.04 0.03" pos="0 0 0.05"
+                              rgba="0.3 0.8 0.3 0" contype="1" conaffinity="1" group="3"/>
                         <site name="pinch" pos="0 0 0.145" type="sphere" group="5" rgba="0.9 0.9 0.9 1" size="0.005"/>
                         <site name="grasp_site" pos="0 0 0.145" size="0.01" rgba="0 1 0 0.3"/>
 
@@ -145,6 +152,9 @@
                               pos="0 -0.018 0.0065" solimplimit="0.95 0.99 0.001" solreflimit="0.005 1"/>
                             <geom type="mesh" mesh="follower" material="robotiq_black" contype="0" conaffinity="0"/>
                             <geom type="mesh" mesh="follower"/>
+                            <!-- Collision geom for right follower -->
+                            <geom name="right_follower_collision" type="box" size="0.015 0.015 0.02" pos="0 -0.01 0.015"
+                                  rgba="0.8 0.3 0.3 0" contype="1" conaffinity="1" group="3"/>
                             <body name="right_pad" pos="0 -0.0189 0.01352">
                               <geom type="box" name="right_pad1" mass="0" pos="0 -0.0026 0.028125" size="0.011 0.004 0.009375"
                                 friction="0.7" solimp="0.95 0.99 0.001" solref="0.004 1" priority="1" rgba="0.55 0.55 0.55 1"/>
@@ -192,6 +202,9 @@
                               pos="0 -0.018 0.0065" solimplimit="0.95 0.99 0.001" solreflimit="0.005 1"/>
                             <geom type="mesh" mesh="follower" material="robotiq_black" contype="0" conaffinity="0"/>
                             <geom type="mesh" mesh="follower"/>
+                            <!-- Collision geom for left follower -->
+                            <geom name="left_follower_collision" type="box" size="0.015 0.015 0.02" pos="0 -0.01 0.015"
+                                  rgba="0.8 0.3 0.3 0" contype="1" conaffinity="1" group="3"/>
                             <body name="left_pad" pos="0 -0.0189 0.01352">
                               <geom type="box" name="left_pad1" mass="0" pos="0 -0.0026 0.028125" size="0.011 0.004 0.009375"
                                 friction="0.7" solimp="0.95 0.99 0.001" solref="0.004 1" priority="1" rgba="0.55 0.55 0.55 1"/>
