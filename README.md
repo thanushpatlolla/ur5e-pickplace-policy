@@ -65,7 +65,7 @@ pip install mujoco mujoco-viewer numpy mink
 Run the simulation with:
 
 ```bash
-python main.py
+mjpython main.py
 ```
 
 This will execute 100 pick-and-place episodes with randomized object configurations. Each episode:
