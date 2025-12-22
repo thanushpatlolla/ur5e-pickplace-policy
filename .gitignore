@@ -1,5 +1,4 @@
 /.claude/
 /mujoco_menagerie/
-/pycache/
+/__pycache__/
 /robotiq_2f85/
-__pycache__/initialize_object.cpython-313.pyc
