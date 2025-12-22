@@ -43,20 +43,26 @@ def make_basis(z_world, x_world_hint):
 
 def rotation_vertical_and_align_to_cuboid(R_WE, R_WO, down_W, a_E, c_E):
     v_W = R_WE @ a_E
-    # R_align = align_vectors(v_W, down_W)
+    R_align = align_vectors(v_W, down_W)
 
-    R_vert = v_W @ R_WE
+    R_vert = R_align @ R_WE
 
     ox_W = R_WO[:, 0]
     oy_W = R_WO[:, 1]
 
+    def horiz(u):
+        u = u - down_W * (u @ down_W)
+        return normalize(u)
+
+    ox_h = horiz(ox_W)
+    oy_h = horiz(oy_W)
 
     c_W_current = R_vert @ c_E
     c_h_current = horiz(c_W_current)
 
-    score_x = abs(c_h_current @ ox_W)
-    score_y = abs(c_h_current @ oy_W)
-    chosen = ox_W if score_x >= score_y else oy_W
+    score_x = abs(c_h_current @ ox_h)
+    score_y = abs(c_h_current @ oy_h)
+    chosen = ox_h if score_x >= score_y else oy_h
 
     if (c_h_current @ chosen) < 0:
         chosen = -chosen
@@ -70,10 +76,10 @@ def rotation_vertical_and_align_to_cuboid(R_WE, R_WO, down_W, a_E, c_E):
     R_target = B_W @ B_E.T
     return R_target
 
-def get_rotation_matrix(T_WE, a_E, c_E, down_W, T_WO, current_step):
+def get_rotation_matrix(T_WE, a_E, c_E, down_W, R_WO, current_step):
     R_WE = T_WE.as_matrix()[:3, :3]
     if current_step in [1,2,3]:
-        R_WO = T_WO.as_matrix()[:3, :3]
+        # R_WO is already a rotation matrix, passed directly
         R_target = rotation_vertical_and_align_to_cuboid(
             R_WE=R_WE,
             R_WO=R_WO,

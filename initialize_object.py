@@ -22,10 +22,9 @@ def initialize_object(model, data):
     object_geom = model.geom("object_geom")
     object_geom_id = object_geom.id
     
-    # Randomize cuboid dimensions (half-extents)
-    width = np.random.uniform(0.02, 0.04)
-    depth = np.random.uniform(0.02, 0.04)
-    height = np.random.uniform(0.015, 0.04)
+    width = np.random.uniform(0.01, 0.03)
+    depth = np.random.uniform(0.01, 0.03)
+    height = np.random.uniform(0.02, 0.05)
     model.geom_size[object_geom_id] = np.array([width, depth, height])
     
     object_size = model.geom_size[object_geom_id]
@@ -36,18 +35,18 @@ def initialize_object(model, data):
     qpos_start = model.jnt_qposadr[object_joint_id]
 
     margin = 0.05
-    robot_base_xy = np.array([0.0, 0.0])  # Robot base is at (0, 0, 0.4)
-    min_distance_from_robot = 0.35  # Minimum 35cm from robot base
+    robot_base_xy = np.array([0.0, 0.0])
+    min_distance_from_robot = 0.25  # Minimum 25cm from robot base
+    max_distance_from_robot = 0.65  # Maximum 65cm from robot base (advertised to have 85cm, but doesn't work for us)
 
-    # Rejection sampling: keep generating positions until we find one far enough from robot
-    max_attempts = 100
+    max_attempts = 100000
     for _ in range(max_attempts):
         pos_xy = np.array([
             np.random.uniform(table_x_min + margin, table_x_max - margin),
             np.random.uniform(table_y_min + margin, table_y_max - margin)
         ])
         distance_from_robot = np.linalg.norm(pos_xy - robot_base_xy)
-        if distance_from_robot >= min_distance_from_robot:
+        if min_distance_from_robot <= distance_from_robot <= max_distance_from_robot:
             break
 
     pos = np.array([pos_xy[0], pos_xy[1], table_top_z + object_half_height])
