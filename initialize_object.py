@@ -36,7 +36,7 @@ def initialize_object(model, data):
 
     margin = 0.05
     robot_base_xy = np.array([0.0, 0.0])
-    min_distance_from_robot = 0.25  # Minimum 25cm from robot base
+    min_distance_from_robot = 0.30  # Minimum 30cm from robot base
     max_distance_from_robot = 0.65  # Maximum 65cm from robot base (advertised to have 85cm, but doesn't work for us)
 
     max_attempts = 100000
@@ -48,6 +48,7 @@ def initialize_object(model, data):
         distance_from_robot = np.linalg.norm(pos_xy - robot_base_xy)
         if min_distance_from_robot <= distance_from_robot <= max_distance_from_robot:
             break
+        
 
     pos = np.array([pos_xy[0], pos_xy[1], table_top_z + object_half_height])
 

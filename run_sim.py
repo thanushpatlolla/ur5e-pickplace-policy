@@ -7,7 +7,7 @@ import time
 from initialize_object import initialize_object
 from rotation_matrix import get_rotation_matrix
 
-def run_sim():
+def run_sim(sleep_time=0.0):
     model = mujoco.MjModel.from_xml_path("scene.xml")
     data = mujoco.MjData(model)
     configuration = mink.Configuration(model)
@@ -53,6 +53,11 @@ def run_sim():
         model.geom("wrist_3_link").id,
         model.geom("wrist_2_link").id,
         model.geom("wrist_1_collision").id,
+        model.geom("forearm_collision_1").id,
+        model.geom("forearm_collision_2").id,
+        model.geom("upper_arm_collision_1").id,
+        model.geom("upper_arm_collision_2").id,
+        model.geom("shoulder_collision").id,
     ]
 
     collision_avoidance_limit = mink.CollisionAvoidanceLimit(
@@ -64,12 +69,12 @@ def run_sim():
     limits.append(collision_avoidance_limit)
 
     max_velocities = {
-        "shoulder_pan": np.pi/2,
-        "shoulder_lift": np.pi/2,
-        "elbow": np.pi/2,
-        "wrist_1": np.pi/2,
-        "wrist_2": np.pi/2,
-        "wrist_3": np.pi/2,
+        "shoulder_pan": np.pi/3,
+        "shoulder_lift": np.pi/3,
+        "elbow": np.pi/3,
+        "wrist_1": np.pi/3,
+        "wrist_2": np.pi/3,
+        "wrist_3": np.pi/3,
     }
     velocity_limit = mink.VelocityLimit(model, max_velocities)
     limits.append(velocity_limit)
@@ -81,6 +86,8 @@ def run_sim():
 
     def check_gripper_object_contact(data, model):
         object_geom_id = model.geom("object_geom").id
+        left_contact = False
+        right_contact = False
 
         for i in range(data.ncon):
             contact = data.contact[i]
@@ -91,9 +98,12 @@ def run_sim():
                 geom_name1 = model.geom(geom1).name
                 geom_name2 = model.geom(geom2).name
 
-                if 'pad' in geom_name1 or 'pad' in geom_name2:
-                    return True
-        return False
+                if 'left_pad' in geom_name1 or 'left_pad' in geom_name2:
+                    left_contact = True
+                if 'right_pad' in geom_name1 or 'right_pad' in geom_name2:
+                    right_contact = True
+
+        return left_contact and right_contact
 
 
     object_joint_id = model.joint("object").id
@@ -110,19 +120,21 @@ def run_sim():
         configuration.update_from_keyframe("home")
         posture_task.set_target(configuration.q)
         mujoco.mj_forward(model, data)
+        
+        object_geom_id = model.geom("object_geom").id
 
 
         target_positions = [
-            initial_object_pos + np.array([0, 0, 0.4]),  # Step 0: 50cm above initial object
+            initial_object_pos + np.array([0, 0, 0.3]),  # Step 0: 30cm above initial object
             initial_object_pos + np.array([0, 0, 0.1]),  # Step 1: 10cm above initial object, helps vertical approach
             initial_object_pos,  # Step 2: At object middle
             initial_object_pos,  # Step 3: Grasp at object middle
-            initial_object_pos + np.array([0, 0, 0.4]),  # Step 4: Lift to 40cm above initial pos
-            target_placement + np.array([0, 0, 0.4]),  # Step 5: Above target
+            initial_object_pos + np.array([0, 0, 0.3]),  # Step 4: Lift to 30cm above initial pos
+            target_placement + np.array([0, 0, 0.3]),  # Step 5: Above target
             target_placement + np.array([0, 0, 0.1]),  # Step 6: to help slow down approach
             target_placement + np.array([0, 0, 0.02]),  # Step 7: Placing block, dont release when it hits the table
             target_placement,  # Step 8: Release block
-            target_placement + np.array([0, 0, 0.4]),  # Step 9: Up from target
+            target_placement + np.array([0, 0, 0.3]),  # Step 9: Up from target
         ]
       
         down_W = np.array([0., 0., -1.])
@@ -134,9 +146,18 @@ def run_sim():
         waiting_for_grasp = False
         waiting_for_release = False
 
+        iterations = 0
         while viewer.is_running():
-            time.sleep(0.005)
+            iterations += 1
+            if sleep_time > 0:
+                time.sleep(sleep_time) #just so i can watch it
+                
+            
             if current_step == 1:
+                end_effector_task.set_orientation_cost(1.0)
+            elif current_step == 4:
+                end_effector_task.set_orientation_cost(0.1)
+            elif current_step == 6:
                 end_effector_task.set_orientation_cost(1.0)
 
             T_WE = configuration.get_transform_frame_to_world("grasp_site", "site")
@@ -164,11 +185,16 @@ def run_sim():
                 limits=limits,
                 damping=1e-3
             )
+            
+            if current_step == 2:
+                ee_pos = data.site("grasp_site").xpos
+                r = np.linalg.norm(target_pos - ee_pos)
+                qdot = qdot * np.clip(r/0.1, 0.01, 1.0)
 
             configuration.integrate_inplace(qdot, dt)
 
             data.ctrl[:6] = configuration.q[:6]
-            
+
             if current_step == 3:
                 data.ctrl[6] = 255
                 if check_gripper_object_contact(data, model):
@@ -193,18 +219,22 @@ def run_sim():
             ee_pos = data.site("grasp_site").xpos
             distance = np.linalg.norm(ee_pos - target_pos)
 
-            if current_step == 2 and distance < 0.01: 
+            if current_step == 2 and distance < 0.01:
                 current_step += 1
             elif distance < step_threshold:
-                if current_step == 3 and not waiting_for_grasp:
-                    current_step += 1
-                elif current_step == 8 and not waiting_for_release:
-                    current_step += 1
+                if current_step == 3:
+                    if not waiting_for_grasp:
+                        current_step += 1
+                elif current_step == 8:
+                    if not waiting_for_release:
+                        current_step += 1
                 else:
                     current_step += 1
 
             if current_step >= len(target_positions):
+                print(f"Iterations: {iterations}")
                 break
+            
 
             viewer.sync()
             
