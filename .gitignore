@@ -2,3 +2,6 @@
 /mujoco_menagerie/
 /__pycache__/
 /robotiq_2f85/
+/checkpoints/
+/data/
+/logs/
