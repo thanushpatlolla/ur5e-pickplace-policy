@@ -4,10 +4,15 @@ import numpy as np
 import mink
 import mink.limits
 import time
+import torch
+import argparse
+from pathlib import Path
 from initialize_object import initialize_object
 from rotation_matrix import get_rotation_matrix
+from model import MLP
+from utils import load_checkpoint
 
-def run_sim(sleep_time=0.0):
+def run_sim(sleep_time=0.0, headless=False):
     model = mujoco.MjModel.from_xml_path("scene.xml")
     data = mujoco.MjData(model)
     configuration = mink.Configuration(model)
@@ -111,11 +116,15 @@ def run_sim(sleep_time=0.0):
     obj_quat_start = obj_qpos_start + 3
     initial_object_pos = data.qpos[obj_qpos_start:obj_qpos_start+3].copy()
 
-    viewer = mujoco.viewer.launch_passive(
-        model=model, data=data, show_left_ui=False, show_right_ui=False
-    )
+    if headless:
+        viewer = None
+    else:
+        viewer = mujoco.viewer.launch_passive(
+            model=model, data=data, show_left_ui=False, show_right_ui=False
+        )
     try:
-        mujoco.mjv_defaultFreeCamera(model, viewer.cam)
+        if viewer is not None:
+            mujoco.mjv_defaultFreeCamera(model, viewer.cam)
 
         configuration.update_from_keyframe("home")
         posture_task.set_target(configuration.q)
@@ -146,8 +155,13 @@ def run_sim(sleep_time=0.0):
         waiting_for_grasp = False
         waiting_for_release = False
 
+        # Initialize data collection
+        timestep_data = []
+        MAX_TIMESTEPS = 10000
+        episode_success = False
+
         iterations = 0
-        while viewer.is_running():
+        while (viewer is None or viewer.is_running()) and iterations < MAX_TIMESTEPS:
             iterations += 1
             if sleep_time > 0:
                 time.sleep(sleep_time) #just so i can watch it
@@ -191,6 +205,9 @@ def run_sim(sleep_time=0.0):
                 r = np.linalg.norm(target_pos - ee_pos)
                 qdot = qdot * np.clip(r/0.1, 0.01, 1.0)
 
+            # Store commanded joint velocity before integration
+            commanded_qdot = qdot[:6].copy()
+
             configuration.integrate_inplace(qdot, dt)
 
             data.ctrl[:6] = configuration.q[:6]
@@ -216,6 +233,18 @@ def run_sim(sleep_time=0.0):
 
             mujoco.mj_step(model, data)
 
+            # Collect timestep data
+            current_timestep = np.concatenate([
+                configuration.q[:6],                              # Joint positions (6)
+                data.qvel[0:6],                                   # Joint velocities (6)
+                commanded_qdot,                                   # Commanded joint velocities (6)
+                data.site("grasp_site").xpos,                     # EE position (3)
+                data.qpos[obj_qpos_start:obj_qpos_start+3],       # Object position (3)
+                data.qpos[obj_qpos_start+3:obj_qpos_start+7],     # Object orientation (4)
+                np.array([data.ctrl[6]])                          # Gripper command (1)
+            ])
+            timestep_data.append(current_timestep)
+
             ee_pos = data.site("grasp_site").xpos
             distance = np.linalg.norm(ee_pos - target_pos)
 
@@ -233,11 +262,166 @@ def run_sim(sleep_time=0.0):
 
             if current_step >= len(target_positions):
                 print(f"Iterations: {iterations}")
+                episode_success = True
                 break
-            
 
-            viewer.sync()
+            if viewer is not None:
+                viewer.sync()
             
     finally:
-        viewer.close()
-        time.sleep(0.3)
+        if viewer is not None:
+            viewer.close()
+            time.sleep(0.3)
+
+        # Return success status and data
+        if episode_success and iterations < MAX_TIMESTEPS:
+            return True, np.array(timestep_data)
+        else:
+            return False, None
+
+
+def run_sim_with_model(checkpoint_path, sleep_time=0.0, headless=False):
+    print(f"Loading model from {checkpoint_path}...")
+
+    policy_model = MLP(
+        input_size=22,
+        hidden_size=256,
+        num_hidden_layers=3,
+        output_size=7
+    )
+
+    checkpoint_data = load_checkpoint(checkpoint_path, policy_model)
+    input_stats = checkpoint_data['input_stats']
+    output_stats = checkpoint_data['output_stats']
+
+    policy_model.eval()
+
+    device = (
+        "cuda" if torch.cuda.is_available()
+        else "mps" if torch.backends.mps.is_available()
+        else "cpu"
+    )
+    policy_model = policy_model.to(device)
+
+    print(f"Model loaded successfully from epoch {checkpoint_data['epoch']}")
+    print(f"Using device: {device}")
+
+    mj_model = mujoco.MjModel.from_xml_path("scene.xml")
+    data = mujoco.MjData(mj_model)
+    configuration = mink.Configuration(mj_model)
+    initialize_object(mj_model, data)
+
+    object_joint_id = mj_model.joint("object").id
+    obj_qpos_start = mj_model.jnt_qposadr[object_joint_id]
+    obj_quat_start = obj_qpos_start + 3
+
+    if headless:
+        viewer = None
+    else:
+        viewer = mujoco.viewer.launch_passive(
+            model=mj_model, data=data, show_left_ui=False, show_right_ui=False
+        )
+
+    try:
+        if viewer is not None:
+            mujoco.mjv_defaultFreeCamera(mj_model, viewer.cam)
+
+        configuration.update_from_keyframe("home")
+        data.qpos[:6] = configuration.q[:6]
+        mujoco.mj_forward(mj_model, data)
+
+        MAX_TIMESTEPS = 10000
+        iterations = 0
+
+        with torch.no_grad():
+            while (viewer is None or viewer.is_running()) and iterations < MAX_TIMESTEPS:
+                iterations += 1
+
+                if sleep_time > 0:
+                    time.sleep(sleep_time)
+
+                # Construct model input (22D):
+                # Joint pos(6) + vel(6) + EE pos(3) + obj pos(3) + obj quat(4)
+                model_input = np.concatenate([
+                    data.qpos[:6],                                    # Joint positions (6)
+                    data.qvel[:6],                                    # Joint velocities (6)
+                    data.site("grasp_site").xpos,                     # EE position (3)
+                    data.qpos[obj_qpos_start:obj_qpos_start+3],       # Object position (3)
+                    data.qpos[obj_quat_start:obj_quat_start+4],       # Object quaternion (4)
+                ])
+
+                normalized_input = (model_input - input_stats['mean']) / input_stats['std']
+
+                input_tensor = torch.tensor(normalized_input, dtype=torch.float32, device=device).unsqueeze(0)
+
+                normalized_output = policy_model(input_tensor).squeeze(0)
+
+                output = normalized_output.cpu().numpy() * output_stats['std'] + output_stats['mean']
+
+                joint_velocities = output[:6]  
+                gripper_logit = output[6]      
+
+                gripper_command = 255.0 if gripper_logit > 0.5 else 0.0
+
+                dt = mj_model.opt.timestep
+                configuration.q[:6] = data.qpos[:6]
+
+                qdot = np.zeros(mj_model.nv)
+                qdot[:6] = joint_velocities 
+
+                configuration.integrate_inplace(qdot, dt)
+
+                data.ctrl[:6] = configuration.q[:6]
+                data.ctrl[6] = gripper_command
+
+                mujoco.mj_step(mj_model, data)
+
+                if viewer is not None:
+                    viewer.sync()
+
+                if iterations % 100 == 0 and not headless:
+                    ee_pos = data.site("grasp_site").xpos
+                    obj_pos = data.qpos[obj_qpos_start:obj_qpos_start+3]
+                    print(f"Step {iterations}: EE={ee_pos}, Obj={obj_pos}, Gripper={gripper_command:.0f}")
+
+    finally:
+        if viewer is not None:
+            viewer.close()
+            time.sleep(0.3)
+
+    print(f"\nSimulation completed after {iterations} steps")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Run robot pick-and-place simulation')
+    parser.add_argument('--mode', type=str, default='ik', choices=['ik', 'model'],
+                       help='Simulation mode: "ik" for inverse kinematics (default), "model" for trained model')
+    parser.add_argument('--checkpoint', type=str, default='checkpoints/best_model.pth',
+                       help='Path to model checkpoint (only used in model mode)')
+    parser.add_argument('--sleep', type=float, default=0.01,
+                       help='Sleep time between steps (default: 0.01s)')
+    parser.add_argument('--headless', action='store_true',
+                       help='Run in headless mode (no visualization)')
+
+    args = parser.parse_args()
+
+    if args.mode == 'ik':
+        print("Running simulation with inverse kinematics and motion planning...")
+        success, data = run_sim(sleep_time=args.sleep, headless=args.headless)
+        if success:
+            print("Task completed successfully!")
+        else:
+            print("Task failed or timed out")
+
+    elif args.mode == 'model':
+        if not Path(args.checkpoint).exists():
+            print(f"Error: Checkpoint file not found at {args.checkpoint}")
+            print("Please train a model first or specify a valid checkpoint path with --checkpoint")
+            exit(1)
+
+        print("Running simulation with trained model...")
+        run_sim_with_model(
+            checkpoint_path=args.checkpoint,
+            sleep_time=args.sleep,
+            headless=args.headless
+        )
