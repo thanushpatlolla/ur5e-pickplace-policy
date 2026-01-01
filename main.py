@@ -43,7 +43,7 @@ if __name__ == "__main__":
             'num_episodes': episode_count,
             'total_attempts': attempt_count,
             'success_rate': episode_count / attempt_count,
-            'data_format': 'joint_pos(6)|joint_vel(6)|cmd_joint_vel(6)|ee_pos(3)|obj_pos(3)|obj_quat(4)|obj_size(3)|gripper(1)',
+            'data_format': 'joint_pos(6)|joint_vel(6)|cmd_joint_vel(6)|ee_pos(3)|ee_quat(4)|obj_pos(3)|obj_quat(4)|obj_size(3)|gripper_joint_pos(1)|gripper_joint_vel(1)|gripper_cmd(1)',
             'total_timesteps': sum(ep.shape[0] for ep in successful_episodes),
             'min_episode_length': min(ep.shape[0] for ep in successful_episodes),
             'max_episode_length': max(ep.shape[0] for ep in successful_episodes),

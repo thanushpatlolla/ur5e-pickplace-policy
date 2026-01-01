@@ -13,6 +13,54 @@ from config import TrainingConfig
 from utils import setup_logging, save_checkpoint, load_checkpoint, compute_metrics, log_metrics, plot_loss_curves, setup_live_plot, update_live_plot, evaluate_specific_episodes
 
 
+class CompositeLoss(nn.Module):
+    """
+    Composite loss function that combines:
+    - MSE loss for joint velocities (continuous values)
+    - BCE loss for gripper commands (binary classification)
+    """
+    def __init__(self, action_dim: int, chunk_size: int, gripper_weight: float = 1.0):
+        super().__init__()
+        self.action_dim = action_dim
+        self.chunk_size = chunk_size
+        self.gripper_weight = gripper_weight
+        self.mse_loss = nn.MSELoss()
+        self.bce_loss = nn.BCELoss()
+
+    def forward(self, predictions: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            predictions: (batch_size, chunk_size * action_dim) - model outputs
+            targets: (batch_size, chunk_size * action_dim) - ground truth actions
+
+        Returns:
+            Combined loss value
+        """
+        batch_size = predictions.shape[0]
+
+        # Reshape to (batch_size, chunk_size, action_dim)
+        pred_reshaped = predictions.view(batch_size, self.chunk_size, self.action_dim)
+        target_reshaped = targets.view(batch_size, self.chunk_size, self.action_dim)
+
+        # Split into joint velocities and gripper
+        pred_joint_vels = pred_reshaped[:, :, :6]  # (batch, chunk_size, 6)
+        pred_gripper = pred_reshaped[:, :, 6:]      # (batch, chunk_size, 1)
+
+        target_joint_vels = target_reshaped[:, :, :6]
+        target_gripper = target_reshaped[:, :, 6:]
+
+        # Compute MSE loss for joint velocities
+        joint_vel_loss = self.mse_loss(pred_joint_vels, target_joint_vels)
+
+        # Compute BCE loss for gripper (binary classification)
+        gripper_loss = self.bce_loss(pred_gripper, target_gripper)
+
+        # Combine losses with weighting
+        total_loss = joint_vel_loss + self.gripper_weight * gripper_loss
+
+        return total_loss
+
+
 def train_one_epoch(model: nn.Module,
                    train_loader: DataLoader,
                    optimizer: torch.optim.Optimizer,
@@ -87,6 +135,7 @@ def main(args):
     logger.info(f"Batch size: {config.batch_size}")
     logger.info(f"Learning rate: {config.learning_rate}")
     logger.info(f"Epochs: {config.epochs}")
+    logger.info(f"Gripper loss weight: {config.gripper_loss_weight}")
     logger.info(f"Action chunking: chunk_size={config.chunk_size}, action_dim={config.action_dim}")
     logger.info(f"Model: {config.input_size}D -> {config.hidden_size}H x {config.num_hidden_layers} -> {config.output_size}D")
     logger.info("=" * 80)
@@ -140,7 +189,9 @@ def main(args):
         config.input_size,
         config.hidden_size,
         config.num_hidden_layers,
-        config.output_size
+        config.output_size,
+        action_dim=config.action_dim,
+        max_joint_velocity=config.max_joint_velocity
     )
     model = model.to(config.device)
 
@@ -152,7 +203,11 @@ def main(args):
         lr=config.learning_rate,
         weight_decay=config.weight_decay
     )
-    loss_fn = nn.MSELoss()
+    loss_fn = CompositeLoss(
+        action_dim=config.action_dim,
+        chunk_size=config.chunk_size,
+        gripper_weight=config.gripper_loss_weight
+    ).to(config.device)
 
     Path(config.checkpoint_dir).mkdir(parents=True, exist_ok=True)
 

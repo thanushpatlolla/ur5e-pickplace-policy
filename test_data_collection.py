@@ -39,12 +39,12 @@ if __name__ == "__main__":
         print(f"Success rate: {episode_count/attempt_count*100:.1f}%")
 
         for i, ep in enumerate(successful_episodes):
-            assert ep.shape[1] == 32, f"Episode {i} has incorrect number of features: {ep.shape[1]}"
+            assert ep.shape[1] == 38, f"Episode {i} has incorrect number of features: {ep.shape[1]}"
             assert ep.shape[0] > 0, f"Episode {i} has no timesteps"
             assert ep.shape[0] <= 10000, f"Episode {i} exceeds max timesteps: {ep.shape[0]}"
             print(f"Episode {i}: {ep.shape[0]} timesteps - ✓")
 
-        print("\nAll episodes have correct shape (timesteps, 32)")
+        print("\nAll episodes have correct shape (timesteps, 38)")
 
         data_dir = "data"
         os.makedirs(data_dir, exist_ok=True)
@@ -60,7 +60,7 @@ if __name__ == "__main__":
             'num_episodes': episode_count,
             'total_attempts': attempt_count,
             'success_rate': episode_count / attempt_count,
-            'data_format': 'joint_pos(6)|joint_vel(6)|cmd_joint_vel(6)|ee_pos(3)|obj_pos(3)|obj_quat(4)|obj_size(3)|gripper(1)',
+            'data_format': 'joint_pos(6)|joint_vel(6)|cmd_joint_vel(6)|ee_pos(3)|ee_quat(4)|obj_pos(3)|obj_quat(4)|obj_size(3)|gripper_joint_pos(1)|gripper_joint_vel(1)|gripper_cmd(1)',
             'total_timesteps': sum(ep.shape[0] for ep in successful_episodes),
             'min_episode_length': min(ep.shape[0] for ep in successful_episodes),
             'max_episode_length': max(ep.shape[0] for ep in successful_episodes),
@@ -85,10 +85,13 @@ if __name__ == "__main__":
         print(f"  Joint velocities (6): {episode_0[0, 6:12]}")
         print(f"  Commanded joint velocities (6): {episode_0[0, 12:18]}")
         print(f"  EE position (3): {episode_0[0, 18:21]}")
-        print(f"  Object position (3): {episode_0[0, 21:24]}")
-        print(f"  Object quaternion (4): {episode_0[0, 24:28]}")
-        print(f"  Object size (3): {episode_0[0, 28:31]}")
-        print(f"  Gripper command (1): {episode_0[0, 31]}")
+        print(f"  EE quaternion (4): {episode_0[0, 21:25]}")
+        print(f"  Object position (3): {episode_0[0, 25:28]}")
+        print(f"  Object quaternion (4): {episode_0[0, 28:32]}")
+        print(f"  Object size (3): {episode_0[0, 32:35]}")
+        print(f"  Gripper joint position (1): {episode_0[0, 35]}")
+        print(f"  Gripper joint velocity (1): {episode_0[0, 36]}")
+        print(f"  Gripper command (1): {episode_0[0, 37]}")
 
         print("\n✓ All tests passed! Data collection is working correctly.")
     else:

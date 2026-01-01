@@ -207,7 +207,9 @@ def run_sim(sleep_time=0.0, headless=False):
                 qdot = qdot * np.clip(r/0.1, 0.01, 1.0)
 
             # Store commanded joint velocity before integration
-            commanded_qdot = qdot[:6].copy()
+            # Clip to velocity limits for data safety (must match IK solver limits)
+            vmax = np.pi / 3
+            commanded_qdot = np.clip(qdot[:6].copy(), -vmax, vmax)
 
             configuration.integrate_inplace(qdot, dt)
 
@@ -249,6 +251,8 @@ def run_sim(sleep_time=0.0, headless=False):
                 data.qpos[obj_qpos_start:obj_qpos_start+3],       # Object position (3)
                 data.qpos[obj_qpos_start+3:obj_qpos_start+7],     # Object orientation (4)
                 model.geom_size[object_geom_id],                  # Object size (3)
+                np.array([data.qpos[6]]),                         # Gripper driver joint position (1)
+                np.array([data.qvel[6]]),                         # Gripper driver joint velocity (1)
                 np.array([data.ctrl[6]])                          # Gripper command (1)
             ])
             timestep_data.append(current_timestep)
@@ -301,10 +305,12 @@ def run_sim_with_model(checkpoint_path, sleep_time=0.0, headless=False, save_vid
     output_size = action_dim * chunk_size
 
     policy_model = MLP(
-        input_size=30,
+        input_size=31,
         hidden_size=256,
         num_hidden_layers=3,
-        output_size=output_size
+        output_size=output_size,
+        action_dim=action_dim,
+        max_joint_velocity=np.pi/3  # Must match IK solver velocity limits
     )
 
     checkpoint_data = load_checkpoint(checkpoint_path, policy_model)
@@ -370,17 +376,18 @@ def run_sim_with_model(checkpoint_path, sleep_time=0.0, headless=False, save_vid
                     ee_quat = np.zeros(4)
                     mujoco.mju_mat2Quat(ee_quat, ee_mat.flatten())
 
-                    # Construct model input (30D):
-                    # Joint pos(6) + vel(6) + EE pos(3) + EE quat(4) + obj pos(3) + obj quat(4) + obj size(3) + gripper(1)
+                    # Construct model input (31D):
+                    # Joint pos(6) + vel(6) + EE pos(3) + EE quat(4) + obj pos(3) + obj quat(4) + obj size(3) + gripper_joint_pos(1) + gripper_joint_vel(1)
                     model_input = np.concatenate([
-                        data.qpos[:6],                                    # Joint positions (6)
-                        data.qvel[:6],                                    # Joint velocities (6)
+                        data.qpos[:6],                                    # Arm joint positions (6)
+                        data.qvel[:6],                                    # Arm joint velocities (6)
                         data.site("grasp_site").xpos,                     # EE position (3)
                         ee_quat,                                          # EE orientation quaternion (4)
                         data.qpos[obj_qpos_start:obj_qpos_start+3],       # Object position (3)
                         data.qpos[obj_quat_start:obj_quat_start+4],       # Object quaternion (4)
                         mj_model.geom_size[object_geom_id],               # Object size (3)
-                        np.array([data.ctrl[6] / 255.0]),                 # Gripper state (1), normalized
+                        np.array([data.qpos[6]]),                         # Gripper driver joint position (1)
+                        np.array([data.qvel[6]]),                         # Gripper driver joint velocity (1)
                     ])
 
                     normalized_input = (model_input - input_stats['mean']) / input_stats['std']

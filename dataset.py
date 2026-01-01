@@ -2,9 +2,38 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 from typing import List, Tuple, Dict
+from pathlib import Path
+import glob
+
+
+def find_latest_dataset(data_dir: str, pattern: str = "pick_place_dataset_*.npz") -> str:
+    """Find the latest dataset file in the given directory based on filename timestamp."""
+    search_path = Path(data_dir) / pattern
+    dataset_files = glob.glob(str(search_path))
+
+    if not dataset_files:
+        raise FileNotFoundError(f"No dataset files matching pattern '{pattern}' found in {data_dir}")
+
+    # Sort by filename (which includes timestamp) to get the latest
+    latest_file = sorted(dataset_files)[-1]
+    return latest_file
 
 
 def load_dataset(npz_path: str) -> List[np.ndarray]:
+    """Load dataset from a .npz file or find the latest dataset in a directory."""
+    path = Path(npz_path)
+
+    # If path is a directory, find the latest dataset file
+    if path.is_dir():
+        npz_path = find_latest_dataset(str(path))
+        print(f"Auto-detected latest dataset: {npz_path}")
+    elif not path.exists():
+        # If the path doesn't exist, try treating it as a directory
+        parent_dir = path.parent
+        if parent_dir.exists() and parent_dir.is_dir():
+            npz_path = find_latest_dataset(str(parent_dir))
+            print(f"Auto-detected latest dataset: {npz_path}")
+
     data = np.load(npz_path)
     episodes = []
 
@@ -44,7 +73,8 @@ def extract_inputs(episode_data: np.ndarray, chunk_size: int = 1) -> np.ndarray:
         episode_data[:, 25:28],  # Object position (3)
         episode_data[:, 28:32],  # Object quaternion (4)
         episode_data[:, 32:35],  # Object size (3)
-        episode_data[:, 35:36] / 255.0,  # Gripper state (1), normalized to [0, 1]
+        episode_data[:, 35:36],  # Gripper driver joint position (1)
+        episode_data[:, 36:37],  # Gripper driver joint velocity (1)
     ], axis=1)
 
     # If using action chunks, only return inputs for valid timesteps
@@ -57,7 +87,7 @@ def extract_inputs(episode_data: np.ndarray, chunk_size: int = 1) -> np.ndarray:
 
 def extract_outputs(episode_data: np.ndarray, chunk_size: int = 1) -> np.ndarray:
     joint_vels = episode_data[:, 12:18]
-    gripper = episode_data[:, 35:36]
+    gripper = episode_data[:, 37:38]
     gripper = gripper / 255.0
 
     single_step_outputs = np.concatenate([joint_vels, gripper], axis=1)  # (T, 7)

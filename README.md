@@ -168,7 +168,7 @@ This runs the simulation using the trained model at `checkpoints/best_model.pth`
 - `--checkpoint PATH`: Specify a different model checkpoint (default: `checkpoints/best_model.pth`)
 - `--sleep SECONDS`: Control visualization speed (default: 0.01s per step)
 - `--headless`: Run without visualization
-- `--actions-per-query N`: Number of steps to execute before recomputing the action chunk (default: `chunk_size/2`). The model predicts `chunk_size` future actions at once, but only executes `actions_per_query` of them before re-querying the model. This allows for temporal ensembling and reduces computation frequency.
+- `--actions-per-query N`: Number of steps to execute before recomputing the action chunk (default: `1`). The model predicts `chunk_size` future actions at once, but only executes `actions_per_query` of them before re-querying the model. This allows for temporal ensembling and reduces computation frequency.
 
 **Examples**:
 
@@ -179,7 +179,7 @@ mjpython run_sim.py --mode model
 
 Watch in slow motion (5x slower):
 ```bash
-mjpython run_sim.py --mode model --sleep 0.05
+mjpython run_sim.py --mode model --sleep 0.02
 ```
 
 Use a specific checkpoint:
@@ -221,7 +221,7 @@ In `run_sim.py`:
 - **Gripper control**: Binary (0 = open, 255 = close)
 - **Collision avoidance margin**: 0.01m minimum distance
 - **Action chunk size**: Number of future actions predicted at once (default: 10, from `config.py`)
-- **Actions per query**: Number of steps executed before recomputing action chunk (default: `chunk_size/2`)
+- **Actions per query**: Number of steps executed before recomputing action chunk (default: `1`)
 
 ## How It Works
 
@@ -244,7 +244,7 @@ Pure model-based control using the trained MLP:
   1. Observes current state (joint pos/vel, EE pos, object pos/quat, object size, gripper state)
   2. Normalizes input using training statistics
   3. Predicts `chunk_size` future actions (joint velocities + gripper commands) via MLP forward pass
-  4. Executes `actions_per_query` steps from the predicted chunk (default: `chunk_size/2`)
+  4. Executes `actions_per_query` steps from the predicted chunk (default: `1`)
   5. After executing `actions_per_query` steps, re-queries the model with updated state
   6. Denormalizes output and applies commands
   7. Steps simulation forward
