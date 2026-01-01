@@ -5,11 +5,12 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 import argparse
 from pathlib import Path
+from datetime import datetime
 
 from model import MLP
 from dataset import load_dataset, split_episodes, compute_normalization_stats, RobotTrajectoryDataset
 from config import TrainingConfig
-from utils import setup_logging, save_checkpoint, load_checkpoint, compute_metrics, log_metrics
+from utils import setup_logging, save_checkpoint, load_checkpoint, compute_metrics, log_metrics, plot_loss_curves, setup_live_plot, update_live_plot, evaluate_specific_episodes
 
 
 def train_one_epoch(model: nn.Module,
@@ -38,7 +39,8 @@ def train_one_epoch(model: nn.Module,
 def validate(model: nn.Module,
             val_loader: DataLoader,
             loss_fn: nn.Module,
-            device: str) -> tuple[float, dict]:
+            device: str,
+            action_dim: int = 7) -> tuple[float, dict]:
     model.eval()
     total_loss = 0.0
     all_outputs = []
@@ -58,7 +60,7 @@ def validate(model: nn.Module,
 
     all_outputs = torch.cat(all_outputs, dim=0)
     all_targets = torch.cat(all_targets, dim=0)
-    metrics = compute_metrics(all_outputs, all_targets)
+    metrics = compute_metrics(all_outputs, all_targets, action_dim=action_dim)
 
     return val_loss, metrics
 
@@ -85,6 +87,7 @@ def main(args):
     logger.info(f"Batch size: {config.batch_size}")
     logger.info(f"Learning rate: {config.learning_rate}")
     logger.info(f"Epochs: {config.epochs}")
+    logger.info(f"Action chunking: chunk_size={config.chunk_size}, action_dim={config.action_dim}")
     logger.info(f"Model: {config.input_size}D -> {config.hidden_size}H x {config.num_hidden_layers} -> {config.output_size}D")
     logger.info("=" * 80)
 
@@ -95,12 +98,16 @@ def main(args):
     )
 
     logger.info("\nComputing normalization statistics...")
-    input_stats, output_stats = compute_normalization_stats(train_episodes)
+    input_stats, output_stats = compute_normalization_stats(
+        train_episodes,
+        chunk_size=config.chunk_size,
+        action_dim=config.action_dim
+    )
 
     logger.info("\nCreating datasets...")
-    train_dataset = RobotTrajectoryDataset(train_episodes, input_stats, output_stats)
-    val_dataset = RobotTrajectoryDataset(val_episodes, input_stats, output_stats)
-    test_dataset = RobotTrajectoryDataset(test_episodes, input_stats, output_stats)
+    train_dataset = RobotTrajectoryDataset(train_episodes, input_stats, output_stats, chunk_size=config.chunk_size)
+    val_dataset = RobotTrajectoryDataset(val_episodes, input_stats, output_stats, chunk_size=config.chunk_size)
+    test_dataset = RobotTrajectoryDataset(test_episodes, input_stats, output_stats, chunk_size=config.chunk_size)
 
     train_loader = DataLoader(
         train_dataset,
@@ -155,6 +162,14 @@ def main(args):
 
     best_val_loss = float('inf')
     epochs_without_improvement = 0
+    train_losses = []
+    val_losses = []
+
+    loss_plot_path = os.path.join(config.log_dir, f'loss_curves_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png')
+
+    fig, ax, train_line, val_line = setup_live_plot()
+    if fig is not None:
+        logger.info("Live plotting enabled - loss curves will update in real-time")
 
     for epoch in range(1, config.epochs + 1):
         epoch_start_time = time.time()
@@ -164,11 +179,16 @@ def main(args):
             model, train_loader, optimizer, loss_fn, config.device
         )
 
-        val_loss, metrics = validate(model, val_loader, loss_fn, config.device)
+        val_loss, metrics = validate(model, val_loader, loss_fn, config.device, config.action_dim)
 
         epoch_time = time.time() - epoch_start_time
 
+        train_losses.append(train_loss)
+        val_losses.append(val_loss)
+
         log_metrics(logger, metrics_path, epoch, train_loss, val_loss, metrics, epoch_time)
+
+        update_live_plot(fig, ax, train_line, val_line, train_losses, val_losses)
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss
@@ -176,7 +196,8 @@ def main(args):
             best_model_path = os.path.join(config.checkpoint_dir, 'best_model.pth')
             save_checkpoint(
                 model, optimizer, epoch, train_loss, val_loss,
-                input_stats, output_stats, best_model_path, metrics
+                input_stats, output_stats, best_model_path, metrics,
+                chunk_size=config.chunk_size, action_dim=config.action_dim
             )
             logger.info(f"  -> Best model saved (val_loss: {val_loss:.6f})")
         else:
@@ -186,13 +207,15 @@ def main(args):
             checkpoint_path = os.path.join(config.checkpoint_dir, f'checkpoint_epoch_{epoch}.pth')
             save_checkpoint(
                 model, optimizer, epoch, train_loss, val_loss,
-                input_stats, output_stats, checkpoint_path, metrics
+                input_stats, output_stats, checkpoint_path, metrics,
+                chunk_size=config.chunk_size, action_dim=config.action_dim
             )
 
         latest_path = os.path.join(config.checkpoint_dir, 'latest_model.pth')
         save_checkpoint(
             model, optimizer, epoch, train_loss, val_loss,
-            input_stats, output_stats, latest_path, metrics
+            input_stats, output_stats, latest_path, metrics,
+            chunk_size=config.chunk_size, action_dim=config.action_dim
         )
 
         if epochs_without_improvement >= config.patience:
@@ -208,7 +231,7 @@ def main(args):
     checkpoint_data = load_checkpoint(best_model_path, model)
     logger.info(f"Loaded best model from epoch {checkpoint_data['epoch']}")
 
-    test_loss, test_metrics = validate(model, test_loader, loss_fn, config.device)
+    test_loss, test_metrics = validate(model, test_loader, loss_fn, config.device, config.action_dim)
 
     logger.info("\nTest Set Results:")
     logger.info(f"  Test Loss: {test_loss:.6f}")
@@ -217,9 +240,53 @@ def main(args):
     logger.info(f"  Gripper Accuracy: {test_metrics['gripper_accuracy']:.4f}")
 
     logger.info("\n" + "=" * 80)
+    logger.info("Saving final loss curve...")
+    logger.info("=" * 80)
+    plot_loss_curves(train_losses, val_losses, loss_plot_path, logger)
+
+    if args.eval_episodes is not None:
+        logger.info("\n" + "=" * 80)
+        logger.info("Evaluating specific episodes...")
+        logger.info("=" * 80)
+
+        episode_indices = [int(idx.strip()) for idx in args.eval_episodes.split(',')]
+
+        if args.eval_split == 'all':
+            eval_episodes_list = episodes
+            logger.info(f"Using all {len(episodes)} episodes")
+        elif args.eval_split == 'train':
+            eval_episodes_list = train_episodes
+            logger.info(f"Using train split ({len(train_episodes)} episodes)")
+        elif args.eval_split == 'val':
+            eval_episodes_list = val_episodes
+            logger.info(f"Using validation split ({len(val_episodes)} episodes)")
+        elif args.eval_split == 'test':
+            eval_episodes_list = test_episodes
+            logger.info(f"Using test split ({len(test_episodes)} episodes)")
+
+        max_idx = max(episode_indices)
+        if max_idx >= len(eval_episodes_list):
+            logger.warning(f"Episode index {max_idx} is out of range for {args.eval_split} split (max: {len(eval_episodes_list)-1})")
+            logger.warning("Skipping specific episode evaluation")
+        else:
+            results = evaluate_specific_episodes(
+                model=model,
+                episodes=eval_episodes_list,
+                episode_indices=episode_indices,
+                input_stats=input_stats,
+                output_stats=output_stats,
+                device=config.device,
+                chunk_size=config.chunk_size,
+                action_dim=config.action_dim,
+                batch_size=config.batch_size,
+                logger=logger
+            )
+
+    logger.info("\n" + "=" * 80)
     logger.info("Training pipeline completed successfully!")
     logger.info(f"Best model saved at: {best_model_path}")
     logger.info(f"Metrics saved at: {metrics_path}")
+    logger.info(f"Loss curves saved at: {loss_plot_path}")
     logger.info("=" * 80)
 
 
@@ -233,6 +300,11 @@ if __name__ == '__main__':
                        help='Learning rate')
     parser.add_argument('--epochs', type=int, default=None,
                        help='Number of epochs to train')
+    parser.add_argument('--eval_episodes', type=str, default=None,
+                       help='Comma-separated list of episode indices to evaluate (e.g., "0,1,5")')
+    parser.add_argument('--eval_split', type=str, default='test',
+                       choices=['all', 'train', 'val', 'test'],
+                       help='Which data split to use for episode evaluation (default: test)')
 
     args = parser.parse_args()
     main(args)

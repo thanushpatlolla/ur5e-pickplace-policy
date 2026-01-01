@@ -11,6 +11,7 @@ from initialize_object import initialize_object
 from rotation_matrix import get_rotation_matrix
 from model import MLP
 from utils import load_checkpoint
+import imageio
 
 def run_sim(sleep_time=0.0, headless=False):
     model = mujoco.MjModel.from_xml_path("scene.xml")
@@ -234,13 +235,20 @@ def run_sim(sleep_time=0.0, headless=False):
             mujoco.mj_step(model, data)
 
             # Collect timestep data
+            # Get EE orientation as quaternion
+            ee_mat = data.site("grasp_site").xmat.reshape(3, 3)
+            ee_quat = np.zeros(4)
+            mujoco.mju_mat2Quat(ee_quat, ee_mat.flatten())
+
             current_timestep = np.concatenate([
                 configuration.q[:6],                              # Joint positions (6)
                 data.qvel[0:6],                                   # Joint velocities (6)
                 commanded_qdot,                                   # Commanded joint velocities (6)
                 data.site("grasp_site").xpos,                     # EE position (3)
+                ee_quat,                                          # EE orientation quaternion (4)
                 data.qpos[obj_qpos_start:obj_qpos_start+3],       # Object position (3)
                 data.qpos[obj_qpos_start+3:obj_qpos_start+7],     # Object orientation (4)
+                model.geom_size[object_geom_id],                  # Object size (3)
                 np.array([data.ctrl[6]])                          # Gripper command (1)
             ])
             timestep_data.append(current_timestep)
@@ -280,14 +288,23 @@ def run_sim(sleep_time=0.0, headless=False):
             return False, None
 
 
-def run_sim_with_model(checkpoint_path, sleep_time=0.0, headless=False):
-    print(f"Loading model from {checkpoint_path}...")
+def run_sim_with_model(checkpoint_path, sleep_time=0.0, headless=False, save_video=False, video_path="rollout.mp4", max_steps=10000, actions_per_query=None):
+    # np.random.seed(38478)
+
+    checkpoint_temp = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
+    chunk_size = checkpoint_temp.get('chunk_size', 1)  # Default to 1 for backward compatibility
+    action_dim = checkpoint_temp.get('action_dim', 7)  # Default to 7
+
+    if actions_per_query is None:
+        actions_per_query = 1
+
+    output_size = action_dim * chunk_size
 
     policy_model = MLP(
-        input_size=22,
+        input_size=30,
         hidden_size=256,
         num_hidden_layers=3,
-        output_size=7
+        output_size=output_size
     )
 
     checkpoint_data = load_checkpoint(checkpoint_path, policy_model)
@@ -303,9 +320,6 @@ def run_sim_with_model(checkpoint_path, sleep_time=0.0, headless=False):
     )
     policy_model = policy_model.to(device)
 
-    print(f"Model loaded successfully from epoch {checkpoint_data['epoch']}")
-    print(f"Using device: {device}")
-
     mj_model = mujoco.MjModel.from_xml_path("scene.xml")
     data = mujoco.MjData(mj_model)
     configuration = mink.Configuration(mj_model)
@@ -314,6 +328,14 @@ def run_sim_with_model(checkpoint_path, sleep_time=0.0, headless=False):
     object_joint_id = mj_model.joint("object").id
     obj_qpos_start = mj_model.jnt_qposadr[object_joint_id]
     obj_quat_start = obj_qpos_start + 3
+    object_geom_id = mj_model.geom("object_geom").id
+
+    # Setup video recording if requested
+    frames = []
+    renderer = None
+    if save_video:
+        renderer = mujoco.Renderer(mj_model, height=480, width=640)
+        print(f"Saving video to: {video_path}")
 
     if headless:
         viewer = None
@@ -330,36 +352,55 @@ def run_sim_with_model(checkpoint_path, sleep_time=0.0, headless=False):
         data.qpos[:6] = configuration.q[:6]
         mujoco.mj_forward(mj_model, data)
 
-        MAX_TIMESTEPS = 10000
         iterations = 0
+        action_chunk = None
+        chunk_idx = 0
 
         with torch.no_grad():
-            while (viewer is None or viewer.is_running()) and iterations < MAX_TIMESTEPS:
+            while (viewer is None or viewer.is_running()) and iterations < max_steps:
                 iterations += 1
 
                 if sleep_time > 0:
                     time.sleep(sleep_time)
 
-                # Construct model input (22D):
-                # Joint pos(6) + vel(6) + EE pos(3) + obj pos(3) + obj quat(4)
-                model_input = np.concatenate([
-                    data.qpos[:6],                                    # Joint positions (6)
-                    data.qvel[:6],                                    # Joint velocities (6)
-                    data.site("grasp_site").xpos,                     # EE position (3)
-                    data.qpos[obj_qpos_start:obj_qpos_start+3],       # Object position (3)
-                    data.qpos[obj_quat_start:obj_quat_start+4],       # Object quaternion (4)
-                ])
+                # Query model if we've used up our actions or it's the first iteration
+                if action_chunk is None or chunk_idx >= actions_per_query:
+                    # Get EE orientation as quaternion
+                    ee_mat = data.site("grasp_site").xmat.reshape(3, 3)
+                    ee_quat = np.zeros(4)
+                    mujoco.mju_mat2Quat(ee_quat, ee_mat.flatten())
 
-                normalized_input = (model_input - input_stats['mean']) / input_stats['std']
+                    # Construct model input (30D):
+                    # Joint pos(6) + vel(6) + EE pos(3) + EE quat(4) + obj pos(3) + obj quat(4) + obj size(3) + gripper(1)
+                    model_input = np.concatenate([
+                        data.qpos[:6],                                    # Joint positions (6)
+                        data.qvel[:6],                                    # Joint velocities (6)
+                        data.site("grasp_site").xpos,                     # EE position (3)
+                        ee_quat,                                          # EE orientation quaternion (4)
+                        data.qpos[obj_qpos_start:obj_qpos_start+3],       # Object position (3)
+                        data.qpos[obj_quat_start:obj_quat_start+4],       # Object quaternion (4)
+                        mj_model.geom_size[object_geom_id],               # Object size (3)
+                        np.array([data.ctrl[6] / 255.0]),                 # Gripper state (1), normalized
+                    ])
 
-                input_tensor = torch.tensor(normalized_input, dtype=torch.float32, device=device).unsqueeze(0)
+                    normalized_input = (model_input - input_stats['mean']) / input_stats['std']
 
-                normalized_output = policy_model(input_tensor).squeeze(0)
+                    input_tensor = torch.tensor(normalized_input, dtype=torch.float32, device=device).unsqueeze(0)
 
-                output = normalized_output.cpu().numpy() * output_stats['std'] + output_stats['mean']
+                    normalized_output = policy_model(input_tensor).squeeze(0)
 
-                joint_velocities = output[:6]  
-                gripper_logit = output[6]      
+                    output = normalized_output.cpu().numpy() * output_stats['std'] + output_stats['mean']
+
+                    # Reshape output to (chunk_size, action_dim)
+                    action_chunk = output.reshape(chunk_size, action_dim)
+                    chunk_idx = 0
+
+                # Extract the current action from the chunk
+                current_action = action_chunk[chunk_idx]
+                chunk_idx += 1
+
+                joint_velocities = current_action[:6]
+                gripper_logit = current_action[6]
 
                 gripper_command = 255.0 if gripper_logit > 0.5 else 0.0
 
@@ -376,6 +417,12 @@ def run_sim_with_model(checkpoint_path, sleep_time=0.0, headless=False):
 
                 mujoco.mj_step(mj_model, data)
 
+                # Capture frame for video if recording
+                if save_video and renderer is not None:
+                    renderer.update_scene(data)
+                    pixels = renderer.render()
+                    frames.append(pixels)
+
                 if viewer is not None:
                     viewer.sync()
 
@@ -391,6 +438,12 @@ def run_sim_with_model(checkpoint_path, sleep_time=0.0, headless=False):
 
     print(f"\nSimulation completed after {iterations} steps")
 
+    # Save video if recording was enabled
+    if save_video and len(frames) > 0:
+        print(f"Saving video with {len(frames)} frames to {video_path}...")
+        imageio.mimsave(video_path, frames, fps=int(1.0 / mj_model.opt.timestep))
+        print(f"Video saved successfully!")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run robot pick-and-place simulation')
@@ -402,6 +455,14 @@ if __name__ == "__main__":
                        help='Sleep time between steps (default: 0.01s)')
     parser.add_argument('--headless', action='store_true',
                        help='Run in headless mode (no visualization)')
+    parser.add_argument('--save-video', action='store_true',
+                       help='Save video of the rollout to an MP4 file')
+    parser.add_argument('--video-path', type=str, default='rollout.mp4',
+                       help='Path to save the video (default: rollout.mp4)')
+    parser.add_argument('--max-steps', type=int, default=10000,
+                       help='Maximum number of simulation steps (default: 10000)')
+    parser.add_argument('--actions-per-query', type=int, default=None,
+                       help='Number of actions to execute before re-querying the model (default: chunk_size/2)')
 
     args = parser.parse_args()
 
@@ -423,5 +484,9 @@ if __name__ == "__main__":
         run_sim_with_model(
             checkpoint_path=args.checkpoint,
             sleep_time=args.sleep,
-            headless=args.headless
+            headless=args.headless,
+            save_video=args.save_video,
+            video_path=args.video_path,
+            max_steps=args.max_steps,
+            actions_per_query=args.actions_per_query
         )

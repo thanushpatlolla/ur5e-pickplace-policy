@@ -12,8 +12,6 @@ if __name__ == "__main__":
     episode_count = 0
     attempt_count = 0
 
-    print(f"Collecting {TARGET_EPISODES} successful episodes...")
-    print("Running in headless mode for faster collection...\n")
 
     while episode_count < TARGET_EPISODES and attempt_count < MAX_ATTEMPTS:
         np.random.seed(attempt_count)
@@ -30,7 +28,6 @@ if __name__ == "__main__":
 
         attempt_count += 1
 
-    # Save to .npz file
     if episode_count > 0:
         data_dir = "data"
         os.makedirs(data_dir, exist_ok=True)
@@ -46,7 +43,7 @@ if __name__ == "__main__":
             'num_episodes': episode_count,
             'total_attempts': attempt_count,
             'success_rate': episode_count / attempt_count,
-            'data_format': 'joint_pos(6)|joint_vel(6)|cmd_joint_vel(6)|ee_pos(3)|obj_pos(3)|obj_quat(4)|gripper(1)',
+            'data_format': 'joint_pos(6)|joint_vel(6)|cmd_joint_vel(6)|ee_pos(3)|obj_pos(3)|obj_quat(4)|obj_size(3)|gripper(1)',
             'total_timesteps': sum(ep.shape[0] for ep in successful_episodes),
             'min_episode_length': min(ep.shape[0] for ep in successful_episodes),
             'max_episode_length': max(ep.shape[0] for ep in successful_episodes),

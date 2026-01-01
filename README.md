@@ -159,7 +159,7 @@ This will:
 After training, you can watch the robot perform pick-and-place using only the model's predictions (no inverse kinematics or motion planning):
 
 ```bash
-python run_sim.py --mode model
+mjpython run_sim.py --mode model
 ```
 
 This runs the simulation using the trained model at `checkpoints/best_model.pth` by default. The robot will follow the model's predicted joint velocities at each timestep.
@@ -168,27 +168,33 @@ This runs the simulation using the trained model at `checkpoints/best_model.pth`
 - `--checkpoint PATH`: Specify a different model checkpoint (default: `checkpoints/best_model.pth`)
 - `--sleep SECONDS`: Control visualization speed (default: 0.01s per step)
 - `--headless`: Run without visualization
+- `--actions-per-query N`: Number of steps to execute before recomputing the action chunk (default: `chunk_size/2`). The model predicts `chunk_size` future actions at once, but only executes `actions_per_query` of them before re-querying the model. This allows for temporal ensembling and reduces computation frequency.
 
 **Examples**:
 
 Watch the model-based rollout (default speed):
 ```bash
-python run_sim.py --mode model
+mjpython run_sim.py --mode model
 ```
 
 Watch in slow motion (5x slower):
 ```bash
-python run_sim.py --mode model --sleep 0.05
+mjpython run_sim.py --mode model --sleep 0.05
 ```
 
 Use a specific checkpoint:
 ```bash
-python run_sim.py --mode model --checkpoint checkpoints/checkpoint_epoch_50.pth
+mjpython run_sim.py --mode model --checkpoint checkpoints/checkpoint_epoch_50.pth
+```
+
+Control action chunk recomputation frequency:
+```bash
+mjpython run_sim.py --mode model --actions-per-query 1 --sleep 0.02
 ```
 
 Compare with the original IK-based approach:
 ```bash
-python run_sim.py --mode ik --sleep 0.01
+mjpython run_sim.py --mode ik --sleep 0.01
 ```
 
 ### 4. Test Data Collection
@@ -196,7 +202,7 @@ python run_sim.py --mode ik --sleep 0.01
 To test the data collection pipeline:
 
 ```bash
-python test_data_collection.py
+mjpython test_data_collection.py
 ```
 
 ### Key Configuration Parameters
@@ -214,6 +220,8 @@ In `run_sim.py`:
 - **Waypoint threshold**: 0.02m (2cm)
 - **Gripper control**: Binary (0 = open, 255 = close)
 - **Collision avoidance margin**: 0.01m minimum distance
+- **Action chunk size**: Number of future actions predicted at once (default: 10, from `config.py`)
+- **Actions per query**: Number of steps executed before recomputing action chunk (default: `chunk_size/2`)
 
 ## How It Works
 
@@ -231,12 +239,16 @@ The original implementation using inverse kinematics and motion planning:
 #### 2. Model Mode (--mode model)
 Pure model-based control using the trained MLP:
 - Loads trained model checkpoint with normalization statistics
-- At each timestep:
-  1. Observes current state (joint pos/vel, EE pos, object pos/quat)
+- Uses action chunking: the model predicts `chunk_size` future actions at once (default: 10)
+- Action execution loop:
+  1. Observes current state (joint pos/vel, EE pos, object pos/quat, object size, gripper state)
   2. Normalizes input using training statistics
-  3. Predicts joint velocities and gripper command via MLP forward pass
-  4. Denormalizes output and applies commands
-  5. Steps simulation forward
+  3. Predicts `chunk_size` future actions (joint velocities + gripper commands) via MLP forward pass
+  4. Executes `actions_per_query` steps from the predicted chunk (default: `chunk_size/2`)
+  5. After executing `actions_per_query` steps, re-queries the model with updated state
+  6. Denormalizes output and applies commands
+  7. Steps simulation forward
+- The `--actions-per-query` parameter controls how many steps are executed before recomputing the action chunk, enabling temporal ensembling and reducing model query frequency
 - No IK solving, no motion planning, no predefined waypoints
 - Pure reactive policy based on current observations
 
