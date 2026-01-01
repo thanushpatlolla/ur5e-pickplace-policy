@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime
 import torch
 
 
@@ -29,11 +30,18 @@ class TrainingConfig:
     weight_decay: float = 1e-4
     epochs: int = 100
 
+    # Learning rate scheduler (ReduceLROnPlateau)
+    lr_scheduler_factor: float = 0.2       # Factor by which LR is reduced
+    lr_scheduler_patience: int = 3         # Epochs with no improvement before reducing LR
+    lr_scheduler_threshold: float = 1e-3   # Threshold for measuring improvement
+    lr_scheduler_cooldown: int = 1         # Epochs to wait before resuming normal operation
+    lr_scheduler_min_lr: float = 1e-6      # Minimum learning rate
+
     # Loss weighting
-    gripper_loss_weight: float = 10.0  # Weight for BCE loss on gripper (vs MSE for joint vels)             
+    gripper_loss_weight: float = 6.0  # Weight for BCE loss on gripper (vs MSE for joint vels)             
 
     # Early stopping
-    patience: int = 10           
+    patience: int = 10        
 
     device: str = (
         "cuda" if torch.cuda.is_available()
@@ -41,8 +49,16 @@ class TrainingConfig:
         else "cpu"
     )
 
-    checkpoint_dir: str = "checkpoints"
-    log_dir: str = "logs"
+    # Run identification - generates timestamp for each training run
+    run_name: str = field(default_factory=lambda: datetime.now().strftime("%Y%m%d_%H%M%S"))
+
+    @property
+    def checkpoint_dir(self) -> str:
+        return f"checkpoints/{self.run_name}"
+
+    @property
+    def log_dir(self) -> str:
+        return f"logs/{self.run_name}"
 
     log_interval: int = 10        
     save_interval: int = 5        

@@ -42,16 +42,15 @@ This project consists of two main components:
 
 ```
 .
-├── main.py                    # Data collection - collects 500 successful episodes
-├── run_sim.py                 # Simulation loop with IK control and task execution
+├── collect_data.py            # Data collection - collects 500 successful episodes
+├── run_sim.py                 # Simulation loop with IK control, model rollout, and task execution
 ├── initialize_object.py       # Randomizes object size, position, and orientation
 ├── rotation_matrix.py         # Rotation matrix utilities for end-effector orientation
 ├── train.py                   # Training script - trains MLP on collected data
 ├── dataset.py                 # Dataset loading, preprocessing, and normalization
-├── model.py                   # MLP model architecture definition
+├── model.py                   # MLP model architecture definition with action chunking
 ├── config.py                  # Training configuration (hyperparameters, paths)
 ├── utils.py                   # Training utilities (logging, checkpointing, metrics)
-├── test_data_collection.py    # Testing script for data collection pipeline
 ├── scene.xml                  # MuJoCo scene definition
 ├── ur5e.xml                   # UR5e robot model configuration
 ├── assets/                    # 3D models and textures
@@ -101,7 +100,7 @@ pip install torch torchvision
 Run the data collection script to collect 500 successful pick-and-place episodes:
 
 ```bash
-mjpython main.py
+mjpython collect_data.py
 ```
 
 This will:
@@ -177,9 +176,9 @@ Watch the model-based rollout (default speed):
 mjpython run_sim.py --mode model
 ```
 
-Watch in slow motion (5x slower):
+Watch in slow motion:
 ```bash
-mjpython run_sim.py --mode model --sleep 0.02
+mjpython run_sim.py --mode model --sleep 0.005
 ```
 
 Use a specific checkpoint:
@@ -195,14 +194,6 @@ mjpython run_sim.py --mode model --actions-per-query 1 --sleep 0.02
 Compare with the original IK-based approach:
 ```bash
 mjpython run_sim.py --mode ik --sleep 0.01
-```
-
-### 4. Test Data Collection
-
-To test the data collection pipeline:
-
-```bash
-mjpython test_data_collection.py
 ```
 
 ### Key Configuration Parameters

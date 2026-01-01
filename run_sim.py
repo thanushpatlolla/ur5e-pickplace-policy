@@ -13,6 +13,52 @@ from model import MLP
 from utils import load_checkpoint
 import imageio
 
+
+def get_latest_checkpoint_dir(checkpoints_root="checkpoints"):
+    """Find the most recent checkpoint directory by timestamp."""
+    checkpoints_path = Path(checkpoints_root)
+    if not checkpoints_path.exists():
+        return None
+
+    # Find all subdirectories that look like timestamps (YYYYMMDD_HHMMSS)
+    checkpoint_dirs = [d for d in checkpoints_path.iterdir() if d.is_dir() and d.name.replace('_', '').isdigit()]
+
+    if not checkpoint_dirs:
+        return None
+
+    # Sort by directory name (timestamp) and get the most recent
+    latest_dir = sorted(checkpoint_dirs, key=lambda x: x.name)[-1]
+    return latest_dir
+
+
+def resolve_checkpoint_path(checkpoint_arg):
+    """
+    Resolve checkpoint path from user argument.
+
+    Args:
+        checkpoint_arg: Can be:
+            - "latest" or None: Use the most recent checkpoint directory
+            - A run name like "20250101_123456": Use checkpoints/{run_name}/best_model.pth
+            - A full path to a .pth file: Use as-is
+
+    Returns:
+        Path to the checkpoint file, or None if not found
+    """
+    if checkpoint_arg is None or checkpoint_arg == "latest":
+        # Find the latest checkpoint directory
+        latest_dir = get_latest_checkpoint_dir()
+        if latest_dir is None:
+            return None
+        checkpoint_path = latest_dir / "best_model.pth"
+    elif checkpoint_arg.endswith('.pth'):
+        # Full path to checkpoint file provided
+        checkpoint_path = Path(checkpoint_arg)
+    else:
+        # Assume it's a run name (timestamp)
+        checkpoint_path = Path(f"checkpoints/{checkpoint_arg}/best_model.pth")
+
+    return checkpoint_path if checkpoint_path.exists() else None
+
 def run_sim(sleep_time=0.0, headless=False):
     model = mujoco.MjModel.from_xml_path("scene.xml")
     data = mujoco.MjData(model)
@@ -293,7 +339,12 @@ def run_sim(sleep_time=0.0, headless=False):
 
 
 def run_sim_with_model(checkpoint_path, sleep_time=0.0, headless=False, save_video=False, video_path="rollout.mp4", max_steps=10000, actions_per_query=None):
-    # np.random.seed(38478)
+    np.random.seed(7)
+    #5
+    #7, 2000
+    #10
+    #17
+    
 
     checkpoint_temp = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
     chunk_size = checkpoint_temp.get('chunk_size', 1)  # Default to 1 for backward compatibility
@@ -456,10 +507,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run robot pick-and-place simulation')
     parser.add_argument('--mode', type=str, default='ik', choices=['ik', 'model'],
                        help='Simulation mode: "ik" for inverse kinematics (default), "model" for trained model')
-    parser.add_argument('--checkpoint', type=str, default='checkpoints/best_model.pth',
-                       help='Path to model checkpoint (only used in model mode)')
-    parser.add_argument('--sleep', type=float, default=0.01,
-                       help='Sleep time between steps (default: 0.01s)')
+    parser.add_argument('--checkpoint', type=str, default=None,
+                       help='Checkpoint to use (only in model mode). Can be: '
+                            '"latest" or omit for most recent checkpoint, '
+                            'a run name like "20250101_123456", '
+                            'or a full path to a .pth file (default: latest)')
+    parser.add_argument('--sleep', type=float, default=0.0,
+                       help='Sleep time between steps (default: 0.0s)')
     parser.add_argument('--headless', action='store_true',
                        help='Run in headless mode (no visualization)')
     parser.add_argument('--save-video', action='store_true',
@@ -482,14 +536,22 @@ if __name__ == "__main__":
             print("Task failed or timed out")
 
     elif args.mode == 'model':
-        if not Path(args.checkpoint).exists():
-            print(f"Error: Checkpoint file not found at {args.checkpoint}")
-            print("Please train a model first or specify a valid checkpoint path with --checkpoint")
+        # Resolve checkpoint path
+        checkpoint_path = resolve_checkpoint_path(args.checkpoint)
+
+        if checkpoint_path is None:
+            if args.checkpoint is None or args.checkpoint == "latest":
+                print("Error: No checkpoint directories found in 'checkpoints/'")
+                print("Please train a model first using train.py")
+            else:
+                print(f"Error: Checkpoint not found for '{args.checkpoint}'")
+                print("Make sure the run name exists or provide a valid checkpoint path")
             exit(1)
 
+        print(f"Using checkpoint: {checkpoint_path}")
         print("Running simulation with trained model...")
         run_sim_with_model(
-            checkpoint_path=args.checkpoint,
+            checkpoint_path=str(checkpoint_path),
             sleep_time=args.sleep,
             headless=args.headless,
             save_video=args.save_video,

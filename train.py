@@ -3,7 +3,7 @@ import time
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-import argparse
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from pathlib import Path
 from datetime import datetime
 
@@ -14,11 +14,6 @@ from utils import setup_logging, save_checkpoint, load_checkpoint, compute_metri
 
 
 class CompositeLoss(nn.Module):
-    """
-    Composite loss function that combines:
-    - MSE loss for joint velocities (continuous values)
-    - BCE loss for gripper commands (binary classification)
-    """
     def __init__(self, action_dim: int, chunk_size: int, gripper_weight: float = 1.0):
         super().__init__()
         self.action_dim = action_dim
@@ -28,14 +23,10 @@ class CompositeLoss(nn.Module):
         self.bce_loss = nn.BCELoss()
 
     def forward(self, predictions: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            predictions: (batch_size, chunk_size * action_dim) - model outputs
-            targets: (batch_size, chunk_size * action_dim) - ground truth actions
+        total_loss, _, _ = self._compute_losses(predictions, targets)
+        return total_loss
 
-        Returns:
-            Combined loss value
-        """
+    def _compute_losses(self, predictions: torch.Tensor, targets: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         batch_size = predictions.shape[0]
 
         # Reshape to (batch_size, chunk_size, action_dim)
@@ -58,39 +49,64 @@ class CompositeLoss(nn.Module):
         # Combine losses with weighting
         total_loss = joint_vel_loss + self.gripper_weight * gripper_loss
 
-        return total_loss
+        return total_loss, joint_vel_loss, gripper_loss
+
+    def compute_with_components(self, predictions: torch.Tensor, targets: torch.Tensor) -> dict[str, torch.Tensor]:
+        total_loss, joint_vel_loss, gripper_loss = self._compute_losses(predictions, targets)
+        return {
+            'total': total_loss,
+            'joint_vel_mse': joint_vel_loss,
+            'gripper_bce': gripper_loss
+        }
 
 
 def train_one_epoch(model: nn.Module,
                    train_loader: DataLoader,
                    optimizer: torch.optim.Optimizer,
                    loss_fn: nn.Module,
-                   device: str) -> float:
+                   device: str) -> dict[str, float]:
     model.train()
     total_loss = 0.0
+    joint_vel_loss_sum = 0.0
+    gripper_loss_sum = 0.0
 
     for inputs, targets in train_loader:
         inputs, targets = inputs.to(device), targets.to(device)
 
         optimizer.zero_grad()
         outputs = model(inputs)
-        loss = loss_fn(outputs, targets)
+
+        # Compute loss with components for logging
+        if isinstance(loss_fn, CompositeLoss):
+            loss_components = loss_fn.compute_with_components(outputs, targets)
+            loss = loss_components['total']
+            joint_vel_loss_sum += loss_components['joint_vel_mse'].item()
+            gripper_loss_sum += loss_components['gripper_bce'].item()
+        else:
+            loss = loss_fn(outputs, targets)
 
         loss.backward()
         optimizer.step()
 
         total_loss += loss.item()
 
-    return total_loss / len(train_loader)
+    num_batches = len(train_loader)
+    return {
+        'total': total_loss / num_batches,
+        'joint_vel_mse': joint_vel_loss_sum / num_batches,
+        'gripper_bce': gripper_loss_sum / num_batches
+    }
 
 
 def validate(model: nn.Module,
             val_loader: DataLoader,
             loss_fn: nn.Module,
             device: str,
-            action_dim: int = 7) -> tuple[float, dict]:
+            action_dim: int = 7) -> tuple[dict[str, float], dict]:
     model.eval()
     total_loss = 0.0
+    joint_vel_loss_sum = 0.0
+    gripper_loss_sum = 0.0
     all_outputs = []
     all_targets = []
 
@@ -98,32 +114,61 @@ def validate(model: nn.Module,
         for inputs, targets in val_loader:
             inputs, targets = inputs.to(device), targets.to(device)
             outputs = model(inputs)
-            loss = loss_fn(outputs, targets)
+
+            # Compute loss with components for logging
+            if isinstance(loss_fn, CompositeLoss):
+                loss_components = loss_fn.compute_with_components(outputs, targets)
+                loss = loss_components['total']
+                joint_vel_loss_sum += loss_components['joint_vel_mse'].item()
+                gripper_loss_sum += loss_components['gripper_bce'].item()
+            else:
+                loss = loss_fn(outputs, targets)
+
             total_loss += loss.item()
 
             all_outputs.append(outputs)
             all_targets.append(targets)
 
-    val_loss = total_loss / len(val_loader)
+    num_batches = len(val_loader)
+    loss_dict = {
+        'total': total_loss / num_batches,
+        'joint_vel_mse': joint_vel_loss_sum / num_batches,
+        'gripper_bce': gripper_loss_sum / num_batches
+    }
 
     all_outputs = torch.cat(all_outputs, dim=0)
     all_targets = torch.cat(all_targets, dim=0)
     metrics = compute_metrics(all_outputs, all_targets, action_dim=action_dim)
 
-    return val_loss, metrics
+    return loss_dict, metrics
 
 
-def main(args):
+def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--lr', type=float, help='Learning rate')
+    parser.add_argument('--batch_size', type=int, help='Batch size')
+    parser.add_argument('--chunk_size', type=int, help='Action chunk size')
+    parser.add_argument('--lr_scheduler_factor', type=float, help='LR scheduler factor')
+    parser.add_argument('--lr_scheduler_patience', type=int, help='LR scheduler patience')
+    parser.add_argument('--weight_decay', type=float, help='Weight decay')
+    args = parser.parse_args()
+
     config = TrainingConfig()
 
-    if args.data_path:
-        config.data_path = args.data_path
-    if args.batch_size:
+    # Override config with command-line arguments
+    if args.lr is not None:
+        config.learning_rate = args.lr
+    if args.batch_size is not None:
         config.batch_size = args.batch_size
-    if args.learning_rate:
-        config.learning_rate = args.learning_rate
-    if args.epochs:
-        config.epochs = args.epochs
+    if args.chunk_size is not None:
+        config.chunk_size = args.chunk_size
+    if args.lr_scheduler_factor is not None:
+        config.lr_scheduler_factor = args.lr_scheduler_factor
+    if args.lr_scheduler_patience is not None:
+        config.lr_scheduler_patience = args.lr_scheduler_patience
+    if args.weight_decay is not None:
+        config.weight_decay = args.weight_decay
 
     logger, metrics_path = setup_logging(config.log_dir)
 
@@ -134,7 +179,10 @@ def main(args):
     logger.info(f"Data path: {config.data_path}")
     logger.info(f"Batch size: {config.batch_size}")
     logger.info(f"Learning rate: {config.learning_rate}")
+    logger.info(f"Weight decay: {config.weight_decay}")
     logger.info(f"Epochs: {config.epochs}")
+    logger.info(f"Patience: {config.patience}")
+    logger.info(f"LR scheduler: ReduceLROnPlateau (factor={config.lr_scheduler_factor}, patience={config.lr_scheduler_patience}, threshold={config.lr_scheduler_threshold}, cooldown={config.lr_scheduler_cooldown}, min_lr={config.lr_scheduler_min_lr})")
     logger.info(f"Gripper loss weight: {config.gripper_loss_weight}")
     logger.info(f"Action chunking: chunk_size={config.chunk_size}, action_dim={config.action_dim}")
     logger.info(f"Model: {config.input_size}D -> {config.hidden_size}H x {config.num_hidden_layers} -> {config.output_size}D")
@@ -203,6 +251,18 @@ def main(args):
         lr=config.learning_rate,
         weight_decay=config.weight_decay
     )
+
+    # Learning rate scheduler
+    scheduler = ReduceLROnPlateau(
+        optimizer,
+        mode='min',
+        factor=config.lr_scheduler_factor,
+        patience=config.lr_scheduler_patience,
+        threshold=config.lr_scheduler_threshold,
+        cooldown=config.lr_scheduler_cooldown,
+        min_lr=config.lr_scheduler_min_lr
+    )
+
     loss_fn = CompositeLoss(
         action_dim=config.action_dim,
         chunk_size=config.chunk_size,
@@ -217,8 +277,8 @@ def main(args):
 
     best_val_loss = float('inf')
     epochs_without_improvement = 0
-    train_losses = []
-    val_losses = []
+    train_losses = []  # Will store total losses for plotting
+    val_losses = []    # Will store total losses for plotting
 
     loss_plot_path = os.path.join(config.log_dir, f'loss_curves_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png')
 
@@ -230,45 +290,50 @@ def main(args):
         epoch_start_time = time.time()
 
         logger.info(f"\nEpoch {epoch}/{config.epochs}")
-        train_loss = train_one_epoch(
+        train_loss_dict = train_one_epoch(
             model, train_loader, optimizer, loss_fn, config.device
         )
 
-        val_loss, metrics = validate(model, val_loader, loss_fn, config.device, config.action_dim)
+        val_loss_dict, metrics = validate(model, val_loader, loss_fn, config.device, config.action_dim)
 
         epoch_time = time.time() - epoch_start_time
 
-        train_losses.append(train_loss)
-        val_losses.append(val_loss)
+        # Store total losses for plotting
+        train_losses.append(train_loss_dict['total'])
+        val_losses.append(val_loss_dict['total'])
 
-        log_metrics(logger, metrics_path, epoch, train_loss, val_loss, metrics, epoch_time)
+        log_metrics(logger, metrics_path, epoch, train_loss_dict, val_loss_dict, metrics, epoch_time)
 
         update_live_plot(fig, ax, train_line, val_line, train_losses, val_losses)
 
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
+        # Update learning rate based on validation loss
+        scheduler.step(val_loss_dict['total'])
+
+        # Use total loss for model selection
+        if val_loss_dict['total'] < best_val_loss:
+            best_val_loss = val_loss_dict['total']
             epochs_without_improvement = 0
             best_model_path = os.path.join(config.checkpoint_dir, 'best_model.pth')
             save_checkpoint(
-                model, optimizer, epoch, train_loss, val_loss,
+                model, optimizer, epoch, train_loss_dict['total'], val_loss_dict['total'],
                 input_stats, output_stats, best_model_path, metrics,
                 chunk_size=config.chunk_size, action_dim=config.action_dim
             )
-            logger.info(f"  -> Best model saved (val_loss: {val_loss:.6f})")
+            logger.info(f"  -> Best model saved (val_loss: {val_loss_dict['total']:.6f})")
         else:
             epochs_without_improvement += 1
 
         if epoch % config.save_interval == 0:
             checkpoint_path = os.path.join(config.checkpoint_dir, f'checkpoint_epoch_{epoch}.pth')
             save_checkpoint(
-                model, optimizer, epoch, train_loss, val_loss,
+                model, optimizer, epoch, train_loss_dict['total'], val_loss_dict['total'],
                 input_stats, output_stats, checkpoint_path, metrics,
                 chunk_size=config.chunk_size, action_dim=config.action_dim
             )
 
         latest_path = os.path.join(config.checkpoint_dir, 'latest_model.pth')
         save_checkpoint(
-            model, optimizer, epoch, train_loss, val_loss,
+            model, optimizer, epoch, train_loss_dict['total'], val_loss_dict['total'],
             input_stats, output_stats, latest_path, metrics,
             chunk_size=config.chunk_size, action_dim=config.action_dim
         )
@@ -286,10 +351,12 @@ def main(args):
     checkpoint_data = load_checkpoint(best_model_path, model)
     logger.info(f"Loaded best model from epoch {checkpoint_data['epoch']}")
 
-    test_loss, test_metrics = validate(model, test_loader, loss_fn, config.device, config.action_dim)
+    test_loss_dict, test_metrics = validate(model, test_loader, loss_fn, config.device, config.action_dim)
 
     logger.info("\nTest Set Results:")
-    logger.info(f"  Test Loss: {test_loss:.6f}")
+    logger.info(f"  Test Loss (Total): {test_loss_dict['total']:.6f}")
+    logger.info(f"  Test Loss (Joint Vel MSE): {test_loss_dict['joint_vel_mse']:.6f}")
+    logger.info(f"  Test Loss (Gripper BCE): {test_loss_dict['gripper_bce']:.6f}")
     logger.info(f"  Joint Vel MSE: {test_metrics['joint_vel_mse']:.6f}")
     logger.info(f"  Joint Vel Max Error: {test_metrics['joint_vel_max_error']:.6f}")
     logger.info(f"  Gripper Accuracy: {test_metrics['gripper_accuracy']:.4f}")
@@ -298,44 +365,6 @@ def main(args):
     logger.info("Saving final loss curve...")
     logger.info("=" * 80)
     plot_loss_curves(train_losses, val_losses, loss_plot_path, logger)
-
-    if args.eval_episodes is not None:
-        logger.info("\n" + "=" * 80)
-        logger.info("Evaluating specific episodes...")
-        logger.info("=" * 80)
-
-        episode_indices = [int(idx.strip()) for idx in args.eval_episodes.split(',')]
-
-        if args.eval_split == 'all':
-            eval_episodes_list = episodes
-            logger.info(f"Using all {len(episodes)} episodes")
-        elif args.eval_split == 'train':
-            eval_episodes_list = train_episodes
-            logger.info(f"Using train split ({len(train_episodes)} episodes)")
-        elif args.eval_split == 'val':
-            eval_episodes_list = val_episodes
-            logger.info(f"Using validation split ({len(val_episodes)} episodes)")
-        elif args.eval_split == 'test':
-            eval_episodes_list = test_episodes
-            logger.info(f"Using test split ({len(test_episodes)} episodes)")
-
-        max_idx = max(episode_indices)
-        if max_idx >= len(eval_episodes_list):
-            logger.warning(f"Episode index {max_idx} is out of range for {args.eval_split} split (max: {len(eval_episodes_list)-1})")
-            logger.warning("Skipping specific episode evaluation")
-        else:
-            results = evaluate_specific_episodes(
-                model=model,
-                episodes=eval_episodes_list,
-                episode_indices=episode_indices,
-                input_stats=input_stats,
-                output_stats=output_stats,
-                device=config.device,
-                chunk_size=config.chunk_size,
-                action_dim=config.action_dim,
-                batch_size=config.batch_size,
-                logger=logger
-            )
 
     logger.info("\n" + "=" * 80)
     logger.info("Training pipeline completed successfully!")
@@ -346,20 +375,4 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Train robot control MLP')
-    parser.add_argument('--data_path', type=str, default=None,
-                       help='Path to NPZ dataset file')
-    parser.add_argument('--batch_size', type=int, default=None,
-                       help='Batch size for training')
-    parser.add_argument('--learning_rate', type=float, default=None,
-                       help='Learning rate')
-    parser.add_argument('--epochs', type=int, default=None,
-                       help='Number of epochs to train')
-    parser.add_argument('--eval_episodes', type=str, default=None,
-                       help='Comma-separated list of episode indices to evaluate (e.g., "0,1,5")')
-    parser.add_argument('--eval_split', type=str, default='test',
-                       choices=['all', 'train', 'val', 'test'],
-                       help='Which data split to use for episode evaluation (default: test)')
-
-    args = parser.parse_args()
-    main(args)
+    main()

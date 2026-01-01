@@ -93,27 +93,16 @@ def load_checkpoint(checkpoint_path: str,
 
 
 def compute_metrics(outputs: torch.Tensor, targets: torch.Tensor, action_dim: int = 7) -> Dict[str, float]:
-    """
-    Compute metrics for model outputs.
-
-    Args:
-        outputs: Model predictions. Shape: (batch_size, chunk_size * action_dim)
-        targets: Ground truth. Shape: (batch_size, chunk_size * action_dim)
-        action_dim: Dimension of a single action (default: 7)
-    """
     with torch.no_grad():
-        # Check if we're using action chunks
         if outputs.shape[1] % action_dim == 0:
             chunk_size = outputs.shape[1] // action_dim
         else:
             chunk_size = 1
 
-        # Reshape to (batch_size, chunk_size, action_dim) for easier indexing
         batch_size = outputs.shape[0]
         outputs_reshaped = outputs.view(batch_size, chunk_size, action_dim)
         targets_reshaped = targets.view(batch_size, chunk_size, action_dim)
 
-        # Extract joint velocities (first 6 dims of each action) and gripper (7th dim)
         joint_vel_outputs = outputs_reshaped[:, :, 0:6]  # (batch_size, chunk_size, 6)
         joint_vel_targets = targets_reshaped[:, :, 0:6]
         joint_vel_mse = torch.mean((joint_vel_outputs - joint_vel_targets) ** 2).item()
@@ -141,15 +130,36 @@ def compute_metrics(outputs: torch.Tensor, targets: torch.Tensor, action_dim: in
 def log_metrics(logger: logging.Logger,
                metrics_path: str,
                epoch: int,
-               train_loss: float,
-               val_loss: float,
+               train_loss: dict,
+               val_loss: dict,
                metrics: Dict[str, float],
                epoch_time: float) -> None:
 
+    if isinstance(train_loss, dict):
+        train_total = train_loss['total']
+        train_joint_vel = train_loss.get('joint_vel_mse', 0.0)
+        train_gripper = train_loss.get('gripper_bce', 0.0)
+    else:
+        train_total = train_loss
+        train_joint_vel = 0.0
+        train_gripper = 0.0
+
+    if isinstance(val_loss, dict):
+        val_total = val_loss['total']
+        val_joint_vel = val_loss.get('joint_vel_mse', 0.0)
+        val_gripper = val_loss.get('gripper_bce', 0.0)
+    else:
+        val_total = val_loss
+        val_joint_vel = 0.0
+        val_gripper = 0.0
+
     logger.info(f"Epoch {epoch:3d} | "
-               f"Train Loss: {train_loss:.6f} | "
-               f"Val Loss: {val_loss:.6f} | "
+               f"Train Loss: {train_total:.6f} | "
+               f"Val Loss: {val_total:.6f} | "
                f"Time: {epoch_time:.2f}s")
+    logger.info(f"         | "
+               f"Train [JV: {train_joint_vel:.6f}, Grip: {train_gripper:.6f}] | "
+               f"Val [JV: {val_joint_vel:.6f}, Grip: {val_gripper:.6f}]")
     logger.info(f"         | "
                f"Joint Vel MSE: {metrics['joint_vel_mse']:.6f} | "
                f"Gripper Acc: {metrics['gripper_accuracy']:.4f}")
@@ -160,12 +170,22 @@ def log_metrics(logger: logging.Logger,
     else:
         all_metrics = {}
 
-    all_metrics[f'epoch_{epoch}'] = {
-        'train_loss': train_loss,
-        'val_loss': val_loss,
+    epoch_data = {
+        'train_loss': train_total,
+        'val_loss': val_total,
         'epoch_time': epoch_time,
         **metrics
     }
+
+    # Add component losses if available
+    if isinstance(train_loss, dict):
+        epoch_data['train_joint_vel_loss'] = train_joint_vel
+        epoch_data['train_gripper_loss'] = train_gripper
+    if isinstance(val_loss, dict):
+        epoch_data['val_joint_vel_loss'] = val_joint_vel
+        epoch_data['val_gripper_loss'] = val_gripper
+
+    all_metrics[f'epoch_{epoch}'] = epoch_data
 
     with open(metrics_path, 'w') as f:
         json.dump(all_metrics, f, indent=2)
@@ -194,15 +214,6 @@ def plot_loss_curves(train_losses: list[float],
                      val_losses: list[float],
                      save_path: str,
                      logger: Optional[logging.Logger] = None) -> None:
-    """
-    Plot training and validation loss curves.
-
-    Args:
-        train_losses: List of training losses per epoch
-        val_losses: List of validation losses per epoch
-        save_path: Path where the plot will be saved
-        logger: Optional logger for logging messages
-    """
     try:
         import matplotlib.pyplot as plt
     except ImportError:
@@ -232,12 +243,6 @@ def plot_loss_curves(train_losses: list[float],
 
 
 def setup_live_plot():
-    """
-    Set up a live plot for training and validation losses.
-
-    Returns:
-        tuple: (fig, ax, train_line, val_line) for updating the plot
-    """
     try:
         import matplotlib.pyplot as plt
         plt.ion()  # Enable interactive mode
@@ -259,17 +264,6 @@ def setup_live_plot():
 
 
 def update_live_plot(fig, ax, train_line, val_line, train_losses, val_losses):
-    """
-    Update the live plot with new loss values.
-
-    Args:
-        fig: Matplotlib figure
-        ax: Matplotlib axes
-        train_line: Training loss line object
-        val_line: Validation loss line object
-        train_losses: List of training losses
-        val_losses: List of validation losses
-    """
     if fig is None:
         return
 
@@ -306,24 +300,6 @@ def evaluate_specific_episodes(model: nn.Module,
                                action_dim: int = 7,
                                batch_size: int = 512,
                                logger: Optional[logging.Logger] = None) -> Dict[str, Any]:
-    """
-    Evaluate model on specific episodes.
-
-    Args:
-        model: The trained model
-        episodes: List of all episodes
-        episode_indices: Indices of episodes to evaluate
-        input_stats: Normalization stats for inputs
-        output_stats: Normalization stats for outputs
-        device: Device to run evaluation on
-        chunk_size: Action chunk size
-        action_dim: Action dimension
-        batch_size: Batch size for evaluation
-        logger: Optional logger
-
-    Returns:
-        Dictionary containing loss and metrics for the specified episodes
-    """
     from dataset import RobotTrajectoryDataset
 
     selected_episodes = [episodes[i] for i in episode_indices]

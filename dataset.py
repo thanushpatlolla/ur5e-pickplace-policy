@@ -77,7 +77,6 @@ def extract_inputs(episode_data: np.ndarray, chunk_size: int = 1) -> np.ndarray:
         episode_data[:, 36:37],  # Gripper driver joint velocity (1)
     ], axis=1)
 
-    # If using action chunks, only return inputs for valid timesteps
     if chunk_size > 1:
         num_valid_timesteps = len(inputs) - chunk_size + 1
         inputs = inputs[:num_valid_timesteps]
@@ -95,15 +94,14 @@ def extract_outputs(episode_data: np.ndarray, chunk_size: int = 1) -> np.ndarray
     if chunk_size == 1:
         return single_step_outputs
 
-    # Create action chunks: for each timestep, get next chunk_size actions
     num_valid_timesteps = len(single_step_outputs) - chunk_size + 1
     chunked_outputs = []
 
     for t in range(num_valid_timesteps):
-        chunk = single_step_outputs[t:t+chunk_size].flatten()  # (chunk_size*7,)
+        chunk = single_step_outputs[t:t+chunk_size].flatten()
         chunked_outputs.append(chunk)
 
-    return np.array(chunked_outputs)  # (T-chunk_size+1, 7*chunk_size)
+    return np.array(chunked_outputs)
 
 
 def compute_normalization_stats(train_episodes: List[np.ndarray],
@@ -121,7 +119,6 @@ def compute_normalization_stats(train_episodes: List[np.ndarray],
     all_inputs = np.concatenate(all_inputs, axis=0)
     all_outputs = np.concatenate(all_outputs, axis=0)
 
-    #normalize
     input_mean = all_inputs.mean(axis=0)
     input_std = all_inputs.std(axis=0)
     output_mean = all_outputs.mean(axis=0)
@@ -130,8 +127,6 @@ def compute_normalization_stats(train_episodes: List[np.ndarray],
     input_std[input_std < 1e-6] = 1.0
     output_std[output_std < 1e-6] = 1.0
 
-    # For action chunks, set gripper dimension stats (every action_dim-th element) to 0 mean, 1 std
-    # Gripper is the last dimension of each action (index 6, 13, 20, ...)
     for i in range(chunk_size):
         gripper_idx = i * action_dim + (action_dim - 1)
         output_mean[gripper_idx] = 0.0
@@ -165,7 +160,6 @@ class RobotTrajectoryDataset(Dataset):
             all_inputs.append(inputs)
             all_outputs.append(outputs)
 
-        # Concatenate all timesteps
         all_inputs = np.concatenate(all_inputs, axis=0)
         all_outputs = np.concatenate(all_outputs, axis=0)
 
