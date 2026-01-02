@@ -338,13 +338,13 @@ def run_sim(sleep_time=0.0, headless=False):
             return False, None
 
 
-def run_sim_with_model(checkpoint_path, sleep_time=0.0, headless=False, save_video=False, video_path="rollout.mp4", max_steps=10000, actions_per_query=None):
-    np.random.seed(7)
+def run_sim_with_model(checkpoint_path, sleep_time=0.0, headless=False, save_video=False, video_path="rollout.mp4", max_steps=10000, actions_per_query=None, placement_threshold=0.05, release_threshold=0.1, verbose=True):
+    # np.random.seed(7)
     #5
     #7, 2000
     #10
     #17
-    
+
 
     checkpoint_temp = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
     chunk_size = checkpoint_temp.get('chunk_size', 1)  # Default to 1 for backward compatibility
@@ -387,12 +387,28 @@ def run_sim_with_model(checkpoint_path, sleep_time=0.0, headless=False, save_vid
     obj_quat_start = obj_qpos_start + 3
     object_geom_id = mj_model.geom("object_geom").id
 
+    # Calculate target placement position
+    table_body = mj_model.body("table")
+    table_geom = mj_model.geom("table_top")
+    table_body_z = mj_model.body_pos[table_body.id][2]
+    table_geom_z = mj_model.geom_pos[table_geom.id][2]
+    table_geom_half_height = mj_model.geom_size[table_geom.id][2]
+    table_top_z = table_body_z + table_geom_z + table_geom_half_height
+    object_half_height = mj_model.geom_size[object_geom_id][2]
+    target_placement = np.array([0.6, 0.3, table_top_z + object_half_height])
+
     # Setup video recording if requested
     frames = []
     renderer = None
     if save_video:
         renderer = mujoco.Renderer(mj_model, height=480, width=640)
-        print(f"Saving video to: {video_path}")
+        if verbose:
+            print(f"Saving video to: {video_path}")
+
+    # Track success status
+    success = False
+    obj_to_target_dist = 0.0
+    ee_to_obj_dist = 0.0
 
     if headless:
         viewer = None
@@ -484,23 +500,43 @@ def run_sim_with_model(checkpoint_path, sleep_time=0.0, headless=False, save_vid
                 if viewer is not None:
                     viewer.sync()
 
-                if iterations % 100 == 0 and not headless:
-                    ee_pos = data.site("grasp_site").xpos
-                    obj_pos = data.qpos[obj_qpos_start:obj_qpos_start+3]
+                # Check termination conditions
+                ee_pos = data.site("grasp_site").xpos
+                obj_pos = data.qpos[obj_qpos_start:obj_qpos_start+3]
+
+                obj_to_target_dist = np.linalg.norm(obj_pos - target_placement)
+                ee_to_obj_dist = np.linalg.norm(ee_pos - obj_pos)
+
+                # Terminate if object is near placement point and end effector has released it
+                if obj_to_target_dist < placement_threshold and ee_to_obj_dist > release_threshold:
+                    success = True
+                    if verbose:
+                        print(f"\n✓ Task completed successfully!")
+                        print(f"  Object distance to target: {obj_to_target_dist:.4f}m (threshold: {placement_threshold}m)")
+                        print(f"  EE distance to object: {ee_to_obj_dist:.4f}m (threshold: {release_threshold}m)")
+                    break
+
+                if verbose and iterations % 100 == 0 and not headless:
                     print(f"Step {iterations}: EE={ee_pos}, Obj={obj_pos}, Gripper={gripper_command:.0f}")
+                    print(f"  Obj->Target: {obj_to_target_dist:.4f}m, EE->Obj: {ee_to_obj_dist:.4f}m")
 
     finally:
         if viewer is not None:
             viewer.close()
             time.sleep(0.3)
 
-    print(f"\nSimulation completed after {iterations} steps")
+    if verbose:
+        print(f"\nSimulation completed after {iterations} steps")
 
     # Save video if recording was enabled
     if save_video and len(frames) > 0:
-        print(f"Saving video with {len(frames)} frames to {video_path}...")
+        if verbose:
+            print(f"Saving video with {len(frames)} frames to {video_path}...")
         imageio.mimsave(video_path, frames, fps=int(1.0 / mj_model.opt.timestep))
-        print(f"Video saved successfully!")
+        if verbose:
+            print(f"Video saved successfully!")
+
+    return success, iterations, obj_to_target_dist, ee_to_obj_dist
 
 
 if __name__ == "__main__":
@@ -524,6 +560,10 @@ if __name__ == "__main__":
                        help='Maximum number of simulation steps (default: 10000)')
     parser.add_argument('--actions-per-query', type=int, default=None,
                        help='Number of actions to execute before re-querying the model (default: chunk_size/2)')
+    parser.add_argument('--placement-threshold', type=float, default=0.05,
+                       help='Distance threshold for object to be considered at placement point (default: 0.05m)')
+    parser.add_argument('--release-threshold', type=float, default=0.1,
+                       help='Distance threshold between end effector and object to consider it released (default: 0.1m)')
 
     args = parser.parse_args()
 
@@ -550,12 +590,14 @@ if __name__ == "__main__":
 
         print(f"Using checkpoint: {checkpoint_path}")
         print("Running simulation with trained model...")
-        run_sim_with_model(
+        success, steps, obj_dist, ee_dist = run_sim_with_model(
             checkpoint_path=str(checkpoint_path),
             sleep_time=args.sleep,
             headless=args.headless,
             save_video=args.save_video,
             video_path=args.video_path,
             max_steps=args.max_steps,
-            actions_per_query=args.actions_per_query
+            actions_per_query=args.actions_per_query,
+            placement_threshold=args.placement_threshold,
+            release_threshold=args.release_threshold
         )

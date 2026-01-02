@@ -181,9 +181,14 @@ Watch in slow motion:
 mjpython run_sim.py --mode model --sleep 0.005
 ```
 
-Use a specific checkpoint:
+Use a specific checkpoint file:
 ```bash
 mjpython run_sim.py --mode model --checkpoint checkpoints/checkpoint_epoch_50.pth
+```
+
+Use a specific timestamp directory (loads best_model.pth from that run):
+```bash
+mjpython run_sim.py --mode model --checkpoint 20260101_072815
 ```
 
 Control action chunk recomputation frequency:

@@ -27,13 +27,13 @@ class TrainingConfig:
 
     batch_size: int = 256
     learning_rate: float = 3e-4   #AdamW
-    weight_decay: float = 1e-4
+    weight_decay: float = 3e-4
     epochs: int = 100
 
     # Learning rate scheduler (ReduceLROnPlateau)
-    lr_scheduler_factor: float = 0.2       # Factor by which LR is reduced
-    lr_scheduler_patience: int = 3         # Epochs with no improvement before reducing LR
-    lr_scheduler_threshold: float = 1e-3   # Threshold for measuring improvement
+    lr_scheduler_factor: float = 0.5       # Factor by which LR is reduced
+    lr_scheduler_patience: int = 5         # Epochs with no improvement before reducing LR
+    lr_scheduler_threshold: float = 2e-3   # Threshold for measuring improvement
     lr_scheduler_cooldown: int = 1         # Epochs to wait before resuming normal operation
     lr_scheduler_min_lr: float = 1e-6      # Minimum learning rate
 
