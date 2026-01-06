@@ -59,7 +59,7 @@ def resolve_checkpoint_path(checkpoint_arg):
 
     return checkpoint_path if checkpoint_path.exists() else None
 
-def run_sim(sleep_time=0.0, headless=False):
+def run_sim(sleep_time=0.0, headless=False, noise_std=0.0):
     model = mujoco.MjModel.from_xml_path("scene.xml")
     data = mujoco.MjData(model)
     configuration = mink.Configuration(model)
@@ -232,13 +232,14 @@ def run_sim(sleep_time=0.0, headless=False):
 
             target_pos = target_positions[current_step]
 
+            # Compute expert (unnoised) qdot
             target_transform = mink.SE3.from_rotation_and_translation(
                 mink.SO3.from_matrix(R_target),
                 target_pos
             )
             end_effector_task.set_target(target_transform)
 
-            qdot = mink.solve_ik(
+            expert_qdot = mink.solve_ik(
                 configuration,
                 tasks,
                 dt=dt,
@@ -246,18 +247,43 @@ def run_sim(sleep_time=0.0, headless=False):
                 limits=limits,
                 damping=1e-3
             )
-            
+
+            # Apply velocity scaling for expert (slow down near target in step 2)
             if current_step == 2:
                 ee_pos = data.site("grasp_site").xpos
                 r = np.linalg.norm(target_pos - ee_pos)
-                qdot = qdot * np.clip(r/0.1, 0.01, 1.0)
+                expert_qdot = expert_qdot * np.clip(r/0.1, 0.01, 1.0)
 
-            # Store commanded joint velocity before integration
-            # Clip to velocity limits for data safety (must match IK solver limits)
+            # Clip expert qdot for recording (must match IK solver limits)
             vmax = np.pi / 3
-            commanded_qdot = np.clip(qdot[:6].copy(), -vmax, vmax)
+            commanded_qdot = np.clip(expert_qdot[:6].copy(), -vmax, vmax)
 
-            configuration.integrate_inplace(qdot, dt)
+            # Compute noisy qdot for execution (if noise enabled)
+            if noise_std > 0:
+                noisy_target_pos = target_pos + np.random.normal(0, noise_std, 3)
+                noisy_transform = mink.SE3.from_rotation_and_translation(
+                    mink.SO3.from_matrix(R_target),
+                    noisy_target_pos
+                )
+                end_effector_task.set_target(noisy_transform)
+
+                execution_qdot = mink.solve_ik(
+                    configuration,
+                    tasks,
+                    dt=dt,
+                    solver=solver,
+                    limits=limits,
+                    damping=1e-3
+                )
+
+                # Apply same velocity scaling for noisy execution
+                if current_step == 2:
+                    execution_qdot = execution_qdot * np.clip(r/0.1, 0.01, 1.0)
+            else:
+                execution_qdot = expert_qdot
+
+            # Execute (possibly noisy) qdot, but record expert qdot
+            configuration.integrate_inplace(execution_qdot, dt)
 
             data.ctrl[:6] = configuration.q[:6]
 
@@ -564,12 +590,16 @@ if __name__ == "__main__":
                        help='Distance threshold for object to be considered at placement point (default: 0.05m)')
     parser.add_argument('--release-threshold', type=float, default=0.1,
                        help='Distance threshold between end effector and object to consider it released (default: 0.1m)')
+    parser.add_argument('--noise', type=float, default=0.0,
+                       help='Gaussian noise std dev on target position in meters (default: 0.0, use 0.002 for 2mm)')
 
     args = parser.parse_args()
 
     if args.mode == 'ik':
         print("Running simulation with inverse kinematics and motion planning...")
-        success, data = run_sim(sleep_time=args.sleep, headless=args.headless)
+        if args.noise > 0:
+            print(f"Noise injection enabled: {args.noise*1000:.1f}mm std dev")
+        success, data = run_sim(sleep_time=args.sleep, headless=args.headless, noise_std=args.noise)
         if success:
             print("Task completed successfully!")
         else:

@@ -25,8 +25,8 @@ class TrainingConfig:
     def output_size(self) -> int:
         return self.action_dim * self.chunk_size
 
-    batch_size: int = 256
-    learning_rate: float = 3e-4   #AdamW
+    batch_size: int = 128
+    learning_rate: float = 5e-4   #AdamW
     weight_decay: float = 1e-4
     epochs: int = 100
 

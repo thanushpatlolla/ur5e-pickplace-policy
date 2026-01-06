@@ -16,7 +16,7 @@ if __name__ == "__main__":
     while episode_count < TARGET_EPISODES and attempt_count < MAX_ATTEMPTS:
         np.random.seed(attempt_count)
 
-        success, episode_data = run_sim(sleep_time=0.0, headless=True)
+        success, episode_data = run_sim(sleep_time=0.0, headless=True, noise_std=0.002)
 
         if success:
             successful_episodes.append(episode_data)
