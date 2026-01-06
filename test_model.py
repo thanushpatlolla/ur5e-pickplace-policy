@@ -77,12 +77,12 @@ def run_batch_testing(
             failure_obj_dists.append(obj_dist)
             failure_ee_dists.append(ee_dist)
 
-        print(f"Run {i+1:3d}/{num_runs} (seed={seed:3d}): {status:7s} "
+        print(f"Run {i+1:3d}/{num_runs} (seed={i:3d}): {status:7s} "
                 f"(steps: {steps:5d}, obj_dist: {obj_dist:.3f}m, ee_dist: {ee_dist:.3f}m)")
 
         results.append({
             'run_id': i,
-            'seed': seed,
+            'seed': i,
             'success': success,
             'steps': steps,
             'obj_to_target_dist': obj_dist,
@@ -138,6 +138,7 @@ def save_results_json(results: Dict[str, Any], output_path: str):
     """Save results to JSON file."""
     # Convert numpy arrays to lists for JSON serialization
     results_copy = results.copy()
+    results_copy['checkpoint'] = str(results['checkpoint'])  # Convert Path to string
     results_copy['success_steps'] = [int(x) for x in results['success_steps']]
     results_copy['failure_steps'] = [int(x) for x in results['failure_steps']]
     results_copy['failure_obj_dists'] = [float(x) for x in results['failure_obj_dists']]
@@ -162,10 +163,10 @@ def main():
                        help='Enable viewer (default)')
     parser.add_argument('--no-viewer', dest='headless', action='store_true',
                        help='Run headless without visualization')
-    parser.add_argument('--max-steps', type=int, default=10000,
-                       help='Maximum simulation steps (default: 10000)')
-    parser.add_argument('--placement-threshold', type=float, default=0.05,
-                       help='Object placement threshold in meters (default: 0.05)')
+    parser.add_argument('--max-steps', type=int, default=20000,
+                       help='Maximum simulation steps (default: 20000)')
+    parser.add_argument('--placement-threshold', type=float, default=0.1,
+                       help='Object placement threshold in meters (default: 0.1)')
     parser.add_argument('--release-threshold', type=float, default=0.1,
                        help='EE release threshold in meters (default: 0.1)')
     parser.add_argument('--save-results', type=str,

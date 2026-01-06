@@ -27,7 +27,7 @@ class TrainingConfig:
 
     batch_size: int = 256
     learning_rate: float = 3e-4   #AdamW
-    weight_decay: float = 3e-4
+    weight_decay: float = 1e-4
     epochs: int = 100
 
     # Learning rate scheduler (ReduceLROnPlateau)
@@ -38,7 +38,7 @@ class TrainingConfig:
     lr_scheduler_min_lr: float = 1e-6      # Minimum learning rate
 
     # Loss weighting
-    gripper_loss_weight: float = 6.0  # Weight for BCE loss on gripper (vs MSE for joint vels)             
+    gripper_loss_weight: float = 5.0  # Weight for BCE loss on gripper (vs MSE for joint vels)             
 
     # Early stopping
     patience: int = 10        

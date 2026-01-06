@@ -23,7 +23,7 @@ for checkpoint_dir in checkpoints/*/; do
         json_file="${RESULTS_DIR}/${dir_name}_results.json"
 
         # Run test_model.py headless and save output
-        python test_model.py \
+        python -u test_model.py \
             --checkpoint "${checkpoint_dir}best_model.pth" \
             --num-runs 100 \
             --no-viewer \
