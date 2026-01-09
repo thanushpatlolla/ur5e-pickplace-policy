@@ -1,27 +1,26 @@
 from run_sim import run_sim
+from config import DataCollectionConfig
 import numpy as np
 from datetime import datetime
 import os
 
 if __name__ == "__main__":
-    TARGET_EPISODES = 500
-    MAX_ATTEMPTS = 1000 #if we have 500 failed runs it doesnt work, this wont happen
-                        #because our simulations work well
+    cfg = DataCollectionConfig()
 
     successful_episodes = []
     episode_count = 0
     attempt_count = 0
 
 
-    while episode_count < TARGET_EPISODES and attempt_count < MAX_ATTEMPTS:
+    while episode_count < cfg.target_episodes and attempt_count < cfg.max_attempts:
         np.random.seed(attempt_count)
 
-        success, episode_data = run_sim(sleep_time=0.0, headless=True, noise_std=0.002)
+        success, episode_data = run_sim(sleep_time=0.0, headless=True, noise_std=cfg.noise_std)
 
         if success:
             successful_episodes.append(episode_data)
             episode_count += 1
-            print(f"Episode {episode_count}/{TARGET_EPISODES} - Success! "
+            print(f"Episode {episode_count}/{cfg.target_episodes} - Success! "
                   f"({episode_data.shape[0]} timesteps, attempt {attempt_count + 1})")
         else:
             print(f"Attempt {attempt_count + 1} - Failed (timeout)")
@@ -63,4 +62,4 @@ if __name__ == "__main__":
         print(f"Success rate: {metadata['success_rate']*100:.1f}%")
         print(f"{'='*60}")
     else:
-        print(f"\nFailed to collect any episodes after {MAX_ATTEMPTS} attempts")
+        print(f"\nFailed to collect any episodes after {cfg.max_attempts} attempts")

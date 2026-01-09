@@ -4,6 +4,13 @@ import torch
 
 
 @dataclass
+class DataCollectionConfig:
+    target_episodes: int = 2000
+    max_attempts: int = 4000  # Safety limit for failed runs
+    noise_std: float = 0.002    # Gaussian noise std dev in meters (0.002 = 2mm)
+
+
+@dataclass
 class TrainingConfig:
     data_path: str = "data"  # Will auto-detect latest dataset in this directory
 
@@ -25,12 +32,13 @@ class TrainingConfig:
     def output_size(self) -> int:
         return self.action_dim * self.chunk_size
 
-    batch_size: int = 128
-    learning_rate: float = 5e-4   #AdamW
+    batch_size: int = 256
+    learning_rate: float = 3e-4   #AdamW
     weight_decay: float = 1e-4
     epochs: int = 100
 
     # Learning rate scheduler (ReduceLROnPlateau)
+    use_lr_scheduler: bool = False          # Whether to use learning rate scheduler
     lr_scheduler_factor: float = 0.5       # Factor by which LR is reduced
     lr_scheduler_patience: int = 5         # Epochs with no improvement before reducing LR
     lr_scheduler_threshold: float = 2e-3   # Threshold for measuring improvement
@@ -38,7 +46,7 @@ class TrainingConfig:
     lr_scheduler_min_lr: float = 1e-6      # Minimum learning rate
 
     # Loss weighting
-    gripper_loss_weight: float = 5.0  # Weight for BCE loss on gripper (vs MSE for joint vels)             
+    gripper_loss_weight: float = 10.0  # Weight for BCE loss on gripper (vs MSE for joint vels)             
 
     # Early stopping
     patience: int = 10        

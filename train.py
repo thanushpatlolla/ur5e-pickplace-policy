@@ -152,6 +152,7 @@ def main():
     parser.add_argument('--lr_scheduler_factor', type=float, help='LR scheduler factor')
     parser.add_argument('--lr_scheduler_patience', type=int, help='LR scheduler patience')
     parser.add_argument('--weight_decay', type=float, help='Weight decay')
+    parser.add_argument('--no_lr_scheduler', action='store_true', help='Disable learning rate scheduler')
     args = parser.parse_args()
 
     config = TrainingConfig()
@@ -169,6 +170,8 @@ def main():
         config.lr_scheduler_patience = args.lr_scheduler_patience
     if args.weight_decay is not None:
         config.weight_decay = args.weight_decay
+    if args.no_lr_scheduler:
+        config.use_lr_scheduler = False
 
     logger, metrics_path = setup_logging(config.log_dir)
 
@@ -182,7 +185,10 @@ def main():
     logger.info(f"Weight decay: {config.weight_decay}")
     logger.info(f"Epochs: {config.epochs}")
     logger.info(f"Patience: {config.patience}")
-    logger.info(f"LR scheduler: ReduceLROnPlateau (factor={config.lr_scheduler_factor}, patience={config.lr_scheduler_patience}, threshold={config.lr_scheduler_threshold}, cooldown={config.lr_scheduler_cooldown}, min_lr={config.lr_scheduler_min_lr})")
+    if config.use_lr_scheduler:
+        logger.info(f"LR scheduler: ReduceLROnPlateau (factor={config.lr_scheduler_factor}, patience={config.lr_scheduler_patience}, threshold={config.lr_scheduler_threshold}, cooldown={config.lr_scheduler_cooldown}, min_lr={config.lr_scheduler_min_lr})")
+    else:
+        logger.info("LR scheduler: Disabled")
     logger.info(f"Gripper loss weight: {config.gripper_loss_weight}")
     logger.info(f"Action chunking: chunk_size={config.chunk_size}, action_dim={config.action_dim}")
     logger.info(f"Model: {config.input_size}D -> {config.hidden_size}H x {config.num_hidden_layers} -> {config.output_size}D")
@@ -253,15 +259,17 @@ def main():
     )
 
     # Learning rate scheduler
-    scheduler = ReduceLROnPlateau(
-        optimizer,
-        mode='min',
-        factor=config.lr_scheduler_factor,
-        patience=config.lr_scheduler_patience,
-        threshold=config.lr_scheduler_threshold,
-        cooldown=config.lr_scheduler_cooldown,
-        min_lr=config.lr_scheduler_min_lr
-    )
+    scheduler = None
+    if config.use_lr_scheduler:
+        scheduler = ReduceLROnPlateau(
+            optimizer,
+            mode='min',
+            factor=config.lr_scheduler_factor,
+            patience=config.lr_scheduler_patience,
+            threshold=config.lr_scheduler_threshold,
+            cooldown=config.lr_scheduler_cooldown,
+            min_lr=config.lr_scheduler_min_lr
+        )
 
     loss_fn = CompositeLoss(
         action_dim=config.action_dim,
@@ -307,7 +315,8 @@ def main():
         update_live_plot(fig, ax, train_line, val_line, train_losses, val_losses)
 
         # Update learning rate based on validation loss
-        scheduler.step(val_loss_dict['total'])
+        if scheduler is not None:
+            scheduler.step(val_loss_dict['total'])
 
         # Use total loss for model selection
         if val_loss_dict['total'] < best_val_loss:

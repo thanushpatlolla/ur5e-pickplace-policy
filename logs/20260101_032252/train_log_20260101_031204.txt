@@ -1,0 +1,294 @@
+2026-01-01 03:12:04,092 - INFO - Logging to logs/train_log_20260101_031204.txt
+2026-01-01 03:12:04,092 - INFO - Metrics will be saved to logs/metrics_20260101_031204.json
+2026-01-01 03:12:04,092 - INFO - ================================================================================
+2026-01-01 03:12:04,092 - INFO - Robot Control MLP Training
+2026-01-01 03:12:04,092 - INFO - ================================================================================
+2026-01-01 03:12:04,092 - INFO - Device: mps
+2026-01-01 03:12:04,092 - INFO - Data path: data
+2026-01-01 03:12:04,092 - INFO - Batch size: 256
+2026-01-01 03:12:04,092 - INFO - Learning rate: 0.0003
+2026-01-01 03:12:04,092 - INFO - Epochs: 100
+2026-01-01 03:12:04,092 - INFO - Gripper loss weight: 10.0
+2026-01-01 03:12:04,092 - INFO - Action chunking: chunk_size=10, action_dim=7
+2026-01-01 03:12:04,092 - INFO - Model: 31D -> 256H x 3 -> 70D
+2026-01-01 03:12:04,092 - INFO - ================================================================================
+2026-01-01 03:12:04,092 - INFO - 
+Loading dataset...
+2026-01-01 03:12:04,663 - INFO - 
+Computing normalization statistics...
+2026-01-01 03:12:05,525 - INFO - 
+Creating datasets...
+2026-01-01 03:12:06,520 - INFO - Train batches: 3630
+2026-01-01 03:12:06,520 - INFO - Val batches: 469
+2026-01-01 03:12:06,520 - INFO - Test batches: 441
+2026-01-01 03:12:06,520 - INFO - 
+Initializing model...
+2026-01-01 03:12:06,527 - INFO - Model parameters: 157,766
+2026-01-01 03:12:06,890 - INFO - 
+================================================================================
+2026-01-01 03:12:06,890 - INFO - Starting training...
+2026-01-01 03:12:06,890 - INFO - ================================================================================
+2026-01-01 03:12:07,172 - INFO - Live plotting enabled - loss curves will update in real-time
+2026-01-01 03:12:07,172 - INFO - 
+Epoch 1/100
+2026-01-01 03:12:21,670 - INFO - Epoch   1 | Train Loss: 0.493282 | Val Loss: 0.310449 | Time: 14.50s
+2026-01-01 03:12:21,670 - INFO -          | Train [JV: 0.312967, Grip: 0.018032] | Val [JV: 0.230266, Grip: 0.008018]
+2026-01-01 03:12:21,670 - INFO -          | Joint Vel MSE: 0.230345 | Gripper Acc: 0.9968
+2026-01-01 03:12:21,768 - INFO -   -> Best model saved (val_loss: 0.310449)
+2026-01-01 03:12:21,774 - INFO - 
+Epoch 2/100
+2026-01-01 03:12:35,286 - INFO - Epoch   2 | Train Loss: 0.293067 | Val Loss: 0.287015 | Time: 13.51s
+2026-01-01 03:12:35,286 - INFO -          | Train [JV: 0.215547, Grip: 0.007752] | Val [JV: 0.199020, Grip: 0.008799]
+2026-01-01 03:12:35,286 - INFO -          | Joint Vel MSE: 0.199086 | Gripper Acc: 0.9965
+2026-01-01 03:12:35,342 - INFO -   -> Best model saved (val_loss: 0.287015)
+2026-01-01 03:12:35,348 - INFO - 
+Epoch 3/100
+2026-01-01 03:12:48,584 - INFO - Epoch   3 | Train Loss: 0.259898 | Val Loss: 0.255628 | Time: 13.24s
+2026-01-01 03:12:48,584 - INFO -          | Train [JV: 0.193820, Grip: 0.006608] | Val [JV: 0.185536, Grip: 0.007009]
+2026-01-01 03:12:48,584 - INFO -          | Joint Vel MSE: 0.185594 | Gripper Acc: 0.9973
+2026-01-01 03:12:48,648 - INFO -   -> Best model saved (val_loss: 0.255628)
+2026-01-01 03:12:48,653 - INFO - 
+Epoch 4/100
+2026-01-01 03:13:02,019 - INFO - Epoch   4 | Train Loss: 0.239969 | Val Loss: 0.261854 | Time: 13.37s
+2026-01-01 03:13:02,019 - INFO -          | Train [JV: 0.180441, Grip: 0.005953] | Val [JV: 0.176128, Grip: 0.008573]
+2026-01-01 03:13:02,019 - INFO -          | Joint Vel MSE: 0.176184 | Gripper Acc: 0.9966
+2026-01-01 03:13:02,062 - INFO - 
+Epoch 5/100
+2026-01-01 03:13:15,684 - INFO - Epoch   5 | Train Loss: 0.226210 | Val Loss: 0.235147 | Time: 13.62s
+2026-01-01 03:13:15,684 - INFO -          | Train [JV: 0.171328, Grip: 0.005488] | Val [JV: 0.169430, Grip: 0.006572]
+2026-01-01 03:13:15,684 - INFO -          | Joint Vel MSE: 0.169484 | Gripper Acc: 0.9975
+2026-01-01 03:13:15,720 - INFO -   -> Best model saved (val_loss: 0.235147)
+2026-01-01 03:13:15,730 - INFO - 
+Epoch 6/100
+2026-01-01 03:13:29,452 - INFO - Epoch   6 | Train Loss: 0.213828 | Val Loss: 0.247355 | Time: 13.72s
+2026-01-01 03:13:29,452 - INFO -          | Train [JV: 0.163870, Grip: 0.004996] | Val [JV: 0.168279, Grip: 0.007908]
+2026-01-01 03:13:29,452 - INFO -          | Joint Vel MSE: 0.168330 | Gripper Acc: 0.9968
+2026-01-01 03:13:29,485 - INFO - 
+Epoch 7/100
+2026-01-01 03:13:50,812 - INFO - Epoch   7 | Train Loss: 0.204192 | Val Loss: 0.232469 | Time: 21.33s
+2026-01-01 03:13:50,812 - INFO -          | Train [JV: 0.157768, Grip: 0.004642] | Val [JV: 0.160803, Grip: 0.007167]
+2026-01-01 03:13:50,812 - INFO -          | Joint Vel MSE: 0.160854 | Gripper Acc: 0.9973
+2026-01-01 03:13:50,847 - INFO -   -> Best model saved (val_loss: 0.232469)
+2026-01-01 03:13:50,852 - INFO - 
+Epoch 8/100
+2026-01-01 03:14:39,341 - INFO - Epoch   8 | Train Loss: 0.197019 | Val Loss: 0.216884 | Time: 48.49s
+2026-01-01 03:14:39,342 - INFO -          | Train [JV: 0.152714, Grip: 0.004430] | Val [JV: 0.156807, Grip: 0.006008]
+2026-01-01 03:14:39,342 - INFO -          | Joint Vel MSE: 0.156855 | Gripper Acc: 0.9976
+2026-01-01 03:14:39,477 - INFO -   -> Best model saved (val_loss: 0.216884)
+2026-01-01 03:14:39,498 - INFO - 
+Epoch 9/100
+2026-01-01 03:14:59,465 - INFO - Epoch   9 | Train Loss: 0.190301 | Val Loss: 0.214868 | Time: 19.97s
+2026-01-01 03:14:59,466 - INFO -          | Train [JV: 0.148498, Grip: 0.004180] | Val [JV: 0.152057, Grip: 0.006281]
+2026-01-01 03:14:59,466 - INFO -          | Joint Vel MSE: 0.152107 | Gripper Acc: 0.9974
+2026-01-01 03:14:59,506 - INFO -   -> Best model saved (val_loss: 0.214868)
+2026-01-01 03:14:59,512 - INFO - 
+Epoch 10/100
+2026-01-01 03:15:45,143 - INFO - Epoch  10 | Train Loss: 0.184162 | Val Loss: 0.208377 | Time: 45.63s
+2026-01-01 03:15:45,143 - INFO -          | Train [JV: 0.144495, Grip: 0.003967] | Val [JV: 0.149140, Grip: 0.005924]
+2026-01-01 03:15:45,143 - INFO -          | Joint Vel MSE: 0.149189 | Gripper Acc: 0.9977
+2026-01-01 03:15:45,271 - INFO -   -> Best model saved (val_loss: 0.208377)
+2026-01-01 03:15:45,326 - INFO - 
+Epoch 11/100
+2026-01-01 03:16:27,084 - INFO - Epoch  11 | Train Loss: 0.178888 | Val Loss: 0.214128 | Time: 41.76s
+2026-01-01 03:16:27,085 - INFO -          | Train [JV: 0.141295, Grip: 0.003759] | Val [JV: 0.144974, Grip: 0.006915]
+2026-01-01 03:16:27,085 - INFO -          | Joint Vel MSE: 0.145023 | Gripper Acc: 0.9977
+2026-01-01 03:16:27,134 - INFO - 
+Epoch 12/100
+2026-01-01 03:16:40,636 - INFO - Epoch  12 | Train Loss: 0.175054 | Val Loss: 0.202278 | Time: 13.50s
+2026-01-01 03:16:40,636 - INFO -          | Train [JV: 0.138522, Grip: 0.003653] | Val [JV: 0.144171, Grip: 0.005811]
+2026-01-01 03:16:40,636 - INFO -          | Joint Vel MSE: 0.144216 | Gripper Acc: 0.9978
+2026-01-01 03:16:40,678 - INFO -   -> Best model saved (val_loss: 0.202278)
+2026-01-01 03:16:40,683 - INFO - 
+Epoch 13/100
+2026-01-01 03:16:54,105 - INFO - Epoch  13 | Train Loss: 0.170522 | Val Loss: 0.201582 | Time: 13.42s
+2026-01-01 03:16:54,105 - INFO -          | Train [JV: 0.135821, Grip: 0.003470] | Val [JV: 0.142500, Grip: 0.005908]
+2026-01-01 03:16:54,105 - INFO -          | Joint Vel MSE: 0.142548 | Gripper Acc: 0.9978
+2026-01-01 03:16:54,153 - INFO -   -> Best model saved (val_loss: 0.201582)
+2026-01-01 03:16:54,158 - INFO - 
+Epoch 14/100
+2026-01-01 03:17:07,368 - INFO - Epoch  14 | Train Loss: 0.167823 | Val Loss: 0.196321 | Time: 13.21s
+2026-01-01 03:17:07,369 - INFO -          | Train [JV: 0.133698, Grip: 0.003413] | Val [JV: 0.142318, Grip: 0.005400]
+2026-01-01 03:17:07,369 - INFO -          | Joint Vel MSE: 0.142368 | Gripper Acc: 0.9980
+2026-01-01 03:17:07,403 - INFO -   -> Best model saved (val_loss: 0.196321)
+2026-01-01 03:17:07,408 - INFO - 
+Epoch 15/100
+2026-01-01 03:17:20,810 - INFO - Epoch  15 | Train Loss: 0.164308 | Val Loss: 0.206373 | Time: 13.40s
+2026-01-01 03:17:20,810 - INFO -          | Train [JV: 0.131714, Grip: 0.003259] | Val [JV: 0.138655, Grip: 0.006772]
+2026-01-01 03:17:20,810 - INFO -          | Joint Vel MSE: 0.138705 | Gripper Acc: 0.9977
+2026-01-01 03:17:20,852 - INFO - 
+Epoch 16/100
+2026-01-01 03:17:37,814 - INFO - Epoch  16 | Train Loss: 0.161700 | Val Loss: 0.199036 | Time: 16.96s
+2026-01-01 03:17:37,814 - INFO -          | Train [JV: 0.129812, Grip: 0.003189] | Val [JV: 0.138537, Grip: 0.006050]
+2026-01-01 03:17:37,814 - INFO -          | Joint Vel MSE: 0.138587 | Gripper Acc: 0.9979
+2026-01-01 03:17:37,850 - INFO - 
+Epoch 17/100
+2026-01-01 03:18:19,883 - INFO - Epoch  17 | Train Loss: 0.159515 | Val Loss: 0.204133 | Time: 42.03s
+2026-01-01 03:18:19,883 - INFO -          | Train [JV: 0.128267, Grip: 0.003125] | Val [JV: 0.138749, Grip: 0.006538]
+2026-01-01 03:18:19,883 - INFO -          | Joint Vel MSE: 0.138797 | Gripper Acc: 0.9979
+2026-01-01 03:18:19,922 - INFO - 
+Epoch 18/100
+2026-01-01 03:18:33,391 - INFO - Epoch  18 | Train Loss: 0.156902 | Val Loss: 0.194216 | Time: 13.47s
+2026-01-01 03:18:33,392 - INFO -          | Train [JV: 0.126560, Grip: 0.003034] | Val [JV: 0.136139, Grip: 0.005808]
+2026-01-01 03:18:33,392 - INFO -          | Joint Vel MSE: 0.136191 | Gripper Acc: 0.9980
+2026-01-01 03:18:33,426 - INFO -   -> Best model saved (val_loss: 0.194216)
+2026-01-01 03:18:33,431 - INFO - 
+Epoch 19/100
+2026-01-01 03:18:46,897 - INFO - Epoch  19 | Train Loss: 0.154986 | Val Loss: 0.192870 | Time: 13.47s
+2026-01-01 03:18:46,897 - INFO -          | Train [JV: 0.125420, Grip: 0.002957] | Val [JV: 0.135873, Grip: 0.005700]
+2026-01-01 03:18:46,897 - INFO -          | Joint Vel MSE: 0.135922 | Gripper Acc: 0.9981
+2026-01-01 03:18:46,941 - INFO -   -> Best model saved (val_loss: 0.192870)
+2026-01-01 03:18:46,946 - INFO - 
+Epoch 20/100
+2026-01-01 03:19:00,244 - INFO - Epoch  20 | Train Loss: 0.153061 | Val Loss: 0.214009 | Time: 13.30s
+2026-01-01 03:19:00,244 - INFO -          | Train [JV: 0.124041, Grip: 0.002902] | Val [JV: 0.135945, Grip: 0.007806]
+2026-01-01 03:19:00,244 - INFO -          | Joint Vel MSE: 0.135995 | Gripper Acc: 0.9975
+2026-01-01 03:19:00,286 - INFO - 
+Epoch 21/100
+2026-01-01 03:19:13,528 - INFO - Epoch  21 | Train Loss: 0.151318 | Val Loss: 0.194834 | Time: 13.24s
+2026-01-01 03:19:13,528 - INFO -          | Train [JV: 0.122895, Grip: 0.002842] | Val [JV: 0.135139, Grip: 0.005969]
+2026-01-01 03:19:13,528 - INFO -          | Joint Vel MSE: 0.135189 | Gripper Acc: 0.9981
+2026-01-01 03:19:13,565 - INFO - 
+Epoch 22/100
+2026-01-01 03:19:27,022 - INFO - Epoch  22 | Train Loss: 0.149839 | Val Loss: 0.193236 | Time: 13.46s
+2026-01-01 03:19:27,023 - INFO -          | Train [JV: 0.121758, Grip: 0.002808] | Val [JV: 0.132790, Grip: 0.006045]
+2026-01-01 03:19:27,023 - INFO -          | Joint Vel MSE: 0.132839 | Gripper Acc: 0.9980
+2026-01-01 03:19:27,062 - INFO - 
+Epoch 23/100
+2026-01-01 03:20:14,669 - INFO - Epoch  23 | Train Loss: 0.147906 | Val Loss: 0.201892 | Time: 47.61s
+2026-01-01 03:20:14,669 - INFO -          | Train [JV: 0.120700, Grip: 0.002721] | Val [JV: 0.131582, Grip: 0.007031]
+2026-01-01 03:20:14,669 - INFO -          | Joint Vel MSE: 0.131629 | Gripper Acc: 0.9975
+2026-01-01 03:20:14,798 - INFO - 
+Epoch 24/100
+2026-01-01 03:20:51,723 - INFO - Epoch  24 | Train Loss: 0.145917 | Val Loss: 0.205682 | Time: 36.93s
+2026-01-01 03:20:51,724 - INFO -          | Train [JV: 0.119788, Grip: 0.002613] | Val [JV: 0.132122, Grip: 0.007356]
+2026-01-01 03:20:51,724 - INFO -          | Joint Vel MSE: 0.132171 | Gripper Acc: 0.9977
+2026-01-01 03:20:51,782 - INFO - 
+Epoch 25/100
+2026-01-01 03:21:05,292 - INFO - Epoch  25 | Train Loss: 0.145699 | Val Loss: 0.191440 | Time: 13.51s
+2026-01-01 03:21:05,292 - INFO -          | Train [JV: 0.118927, Grip: 0.002677] | Val [JV: 0.130608, Grip: 0.006083]
+2026-01-01 03:21:05,292 - INFO -          | Joint Vel MSE: 0.130657 | Gripper Acc: 0.9980
+2026-01-01 03:21:05,329 - INFO -   -> Best model saved (val_loss: 0.191440)
+2026-01-01 03:21:05,340 - INFO - 
+Epoch 26/100
+2026-01-01 03:21:18,827 - INFO - Epoch  26 | Train Loss: 0.143659 | Val Loss: 0.190486 | Time: 13.49s
+2026-01-01 03:21:18,827 - INFO -          | Train [JV: 0.117963, Grip: 0.002570] | Val [JV: 0.128610, Grip: 0.006188]
+2026-01-01 03:21:18,827 - INFO -          | Joint Vel MSE: 0.128656 | Gripper Acc: 0.9981
+2026-01-01 03:21:18,870 - INFO -   -> Best model saved (val_loss: 0.190486)
+2026-01-01 03:21:18,876 - INFO - 
+Epoch 27/100
+2026-01-01 03:21:32,501 - INFO - Epoch  27 | Train Loss: 0.142180 | Val Loss: 0.198020 | Time: 13.63s
+2026-01-01 03:21:32,502 - INFO -          | Train [JV: 0.117208, Grip: 0.002497] | Val [JV: 0.130505, Grip: 0.006752]
+2026-01-01 03:21:32,502 - INFO -          | Joint Vel MSE: 0.130554 | Gripper Acc: 0.9979
+2026-01-01 03:21:32,558 - INFO - 
+Epoch 28/100
+2026-01-01 03:21:45,947 - INFO - Epoch  28 | Train Loss: 0.141114 | Val Loss: 0.190240 | Time: 13.39s
+2026-01-01 03:21:45,947 - INFO -          | Train [JV: 0.116313, Grip: 0.002480] | Val [JV: 0.128751, Grip: 0.006149]
+2026-01-01 03:21:45,947 - INFO -          | Joint Vel MSE: 0.128799 | Gripper Acc: 0.9980
+2026-01-01 03:21:46,010 - INFO -   -> Best model saved (val_loss: 0.190240)
+2026-01-01 03:21:46,015 - INFO - 
+Epoch 29/100
+2026-01-01 03:21:59,466 - INFO - Epoch  29 | Train Loss: 0.140571 | Val Loss: 0.190070 | Time: 13.45s
+2026-01-01 03:21:59,467 - INFO -          | Train [JV: 0.115740, Grip: 0.002483] | Val [JV: 0.129439, Grip: 0.006063]
+2026-01-01 03:21:59,467 - INFO -          | Joint Vel MSE: 0.129487 | Gripper Acc: 0.9980
+2026-01-01 03:21:59,516 - INFO -   -> Best model saved (val_loss: 0.190070)
+2026-01-01 03:21:59,521 - INFO - 
+Epoch 30/100
+2026-01-01 03:22:12,994 - INFO - Epoch  30 | Train Loss: 0.139514 | Val Loss: 0.182408 | Time: 13.47s
+2026-01-01 03:22:12,995 - INFO -          | Train [JV: 0.115010, Grip: 0.002450] | Val [JV: 0.128899, Grip: 0.005351]
+2026-01-01 03:22:12,995 - INFO -          | Joint Vel MSE: 0.128944 | Gripper Acc: 0.9983
+2026-01-01 03:22:13,044 - INFO -   -> Best model saved (val_loss: 0.182408)
+2026-01-01 03:22:13,056 - INFO - 
+Epoch 31/100
+2026-01-01 03:22:26,469 - INFO - Epoch  31 | Train Loss: 0.138309 | Val Loss: 0.210801 | Time: 13.41s
+2026-01-01 03:22:26,470 - INFO -          | Train [JV: 0.114281, Grip: 0.002403] | Val [JV: 0.128280, Grip: 0.008252]
+2026-01-01 03:22:26,470 - INFO -          | Joint Vel MSE: 0.128325 | Gripper Acc: 0.9975
+2026-01-01 03:22:26,513 - INFO - 
+Epoch 32/100
+2026-01-01 03:22:39,772 - INFO - Epoch  32 | Train Loss: 0.137895 | Val Loss: 0.181834 | Time: 13.26s
+2026-01-01 03:22:39,772 - INFO -          | Train [JV: 0.113647, Grip: 0.002425] | Val [JV: 0.127196, Grip: 0.005464]
+2026-01-01 03:22:39,772 - INFO -          | Joint Vel MSE: 0.127244 | Gripper Acc: 0.9982
+2026-01-01 03:22:39,816 - INFO -   -> Best model saved (val_loss: 0.181834)
+2026-01-01 03:22:39,821 - INFO - 
+Epoch 33/100
+2026-01-01 03:22:52,875 - INFO - Epoch  33 | Train Loss: 0.136044 | Val Loss: 0.179566 | Time: 13.05s
+2026-01-01 03:22:52,875 - INFO -          | Train [JV: 0.112970, Grip: 0.002307] | Val [JV: 0.126180, Grip: 0.005339]
+2026-01-01 03:22:52,875 - INFO -          | Joint Vel MSE: 0.126227 | Gripper Acc: 0.9981
+2026-01-01 03:22:52,911 - INFO -   -> Best model saved (val_loss: 0.179566)
+2026-01-01 03:22:52,916 - INFO - 
+Epoch 34/100
+2026-01-01 03:23:11,777 - INFO - Epoch  34 | Train Loss: 0.135404 | Val Loss: 0.189464 | Time: 18.86s
+2026-01-01 03:23:11,778 - INFO -          | Train [JV: 0.112443, Grip: 0.002296] | Val [JV: 0.127224, Grip: 0.006224]
+2026-01-01 03:23:11,778 - INFO -          | Joint Vel MSE: 0.127271 | Gripper Acc: 0.9981
+2026-01-01 03:23:11,824 - INFO - 
+Epoch 35/100
+2026-01-01 03:23:25,015 - INFO - Epoch  35 | Train Loss: 0.133861 | Val Loss: 0.191816 | Time: 13.19s
+2026-01-01 03:23:25,015 - INFO -          | Train [JV: 0.111787, Grip: 0.002207] | Val [JV: 0.124558, Grip: 0.006726]
+2026-01-01 03:23:25,015 - INFO -          | Joint Vel MSE: 0.124604 | Gripper Acc: 0.9982
+2026-01-01 03:23:25,070 - INFO - 
+Epoch 36/100
+2026-01-01 03:23:38,591 - INFO - Epoch  36 | Train Loss: 0.133301 | Val Loss: 0.187421 | Time: 13.52s
+2026-01-01 03:23:38,591 - INFO -          | Train [JV: 0.111165, Grip: 0.002214] | Val [JV: 0.126729, Grip: 0.006069]
+2026-01-01 03:23:38,591 - INFO -          | Joint Vel MSE: 0.126777 | Gripper Acc: 0.9981
+2026-01-01 03:23:38,626 - INFO - 
+Epoch 37/100
+2026-01-01 03:23:52,218 - INFO - Epoch  37 | Train Loss: 0.132866 | Val Loss: 0.191472 | Time: 13.59s
+2026-01-01 03:23:52,218 - INFO -          | Train [JV: 0.110670, Grip: 0.002220] | Val [JV: 0.125714, Grip: 0.006576]
+2026-01-01 03:23:52,218 - INFO -          | Joint Vel MSE: 0.125763 | Gripper Acc: 0.9981
+2026-01-01 03:23:52,255 - INFO - 
+Epoch 38/100
+2026-01-01 03:24:38,379 - INFO - Epoch  38 | Train Loss: 0.131863 | Val Loss: 0.189066 | Time: 46.12s
+2026-01-01 03:24:38,380 - INFO -          | Train [JV: 0.110150, Grip: 0.002171] | Val [JV: 0.125065, Grip: 0.006400]
+2026-01-01 03:24:38,380 - INFO -          | Joint Vel MSE: 0.125111 | Gripper Acc: 0.9982
+2026-01-01 03:24:38,523 - INFO - 
+Epoch 39/100
+2026-01-01 03:25:19,720 - INFO - Epoch  39 | Train Loss: 0.131446 | Val Loss: 0.192315 | Time: 41.20s
+2026-01-01 03:25:19,721 - INFO -          | Train [JV: 0.109653, Grip: 0.002179] | Val [JV: 0.126139, Grip: 0.006618]
+2026-01-01 03:25:19,721 - INFO -          | Joint Vel MSE: 0.126182 | Gripper Acc: 0.9979
+2026-01-01 03:25:19,782 - INFO - 
+Epoch 40/100
+2026-01-01 03:25:33,166 - INFO - Epoch  40 | Train Loss: 0.130791 | Val Loss: 0.188403 | Time: 13.38s
+2026-01-01 03:25:33,166 - INFO -          | Train [JV: 0.109296, Grip: 0.002149] | Val [JV: 0.124925, Grip: 0.006348]
+2026-01-01 03:25:33,166 - INFO -          | Joint Vel MSE: 0.124969 | Gripper Acc: 0.9981
+2026-01-01 03:25:33,219 - INFO - 
+Epoch 41/100
+2026-01-01 03:25:46,716 - INFO - Epoch  41 | Train Loss: 0.129341 | Val Loss: 0.191312 | Time: 13.50s
+2026-01-01 03:25:46,716 - INFO -          | Train [JV: 0.108743, Grip: 0.002060] | Val [JV: 0.124115, Grip: 0.006720]
+2026-01-01 03:25:46,716 - INFO -          | Joint Vel MSE: 0.124162 | Gripper Acc: 0.9981
+2026-01-01 03:25:46,752 - INFO - 
+Epoch 42/100
+2026-01-01 03:25:59,895 - INFO - Epoch  42 | Train Loss: 0.129507 | Val Loss: 0.179808 | Time: 13.14s
+2026-01-01 03:25:59,895 - INFO -          | Train [JV: 0.108393, Grip: 0.002111] | Val [JV: 0.123637, Grip: 0.005617]
+2026-01-01 03:25:59,895 - INFO -          | Joint Vel MSE: 0.123684 | Gripper Acc: 0.9983
+2026-01-01 03:25:59,946 - INFO - 
+Epoch 43/100
+2026-01-01 03:26:13,259 - INFO - Epoch  43 | Train Loss: 0.128886 | Val Loss: 0.188836 | Time: 13.31s
+2026-01-01 03:26:13,259 - INFO -          | Train [JV: 0.107913, Grip: 0.002097] | Val [JV: 0.123048, Grip: 0.006579]
+2026-01-01 03:26:13,259 - INFO -          | Joint Vel MSE: 0.123092 | Gripper Acc: 0.9982
+2026-01-01 03:26:13,305 - INFO - 
+Early stopping triggered after 43 epochs
+2026-01-01 03:26:13,305 - INFO - No improvement for 10 epochs
+2026-01-01 03:26:13,305 - INFO - 
+================================================================================
+2026-01-01 03:26:13,305 - INFO - Training completed. Evaluating on test set...
+2026-01-01 03:26:13,305 - INFO - ================================================================================
+2026-01-01 03:26:13,310 - INFO - Loaded best model from epoch 33
+2026-01-01 03:26:14,782 - INFO - 
+Test Set Results:
+2026-01-01 03:26:14,782 - INFO -   Test Loss (Total): 0.188790
+2026-01-01 03:26:14,782 - INFO -   Test Loss (Joint Vel MSE): 0.138400
+2026-01-01 03:26:14,782 - INFO -   Test Loss (Gripper BCE): 0.005039
+2026-01-01 03:26:14,782 - INFO -   Joint Vel MSE: 0.138621
+2026-01-01 03:26:14,782 - INFO -   Joint Vel Max Error: 2.900841
+2026-01-01 03:26:14,782 - INFO -   Gripper Accuracy: 0.9982
+2026-01-01 03:26:14,782 - INFO - 
+================================================================================
+2026-01-01 03:26:14,782 - INFO - Saving final loss curve...
+2026-01-01 03:26:14,782 - INFO - ================================================================================
+2026-01-01 03:26:14,841 - INFO - Loss curves saved to logs/loss_curves_20260101_031206.png
+2026-01-01 03:26:14,841 - INFO - 
+================================================================================
+2026-01-01 03:26:14,841 - INFO - Training pipeline completed successfully!
+2026-01-01 03:26:14,841 - INFO - Best model saved at: checkpoints/best_model.pth
+2026-01-01 03:26:14,841 - INFO - Metrics saved at: logs/metrics_20260101_031204.json
+2026-01-01 03:26:14,841 - INFO - Loss curves saved at: logs/loss_curves_20260101_031206.png
+2026-01-01 03:26:14,841 - INFO - ================================================================================
